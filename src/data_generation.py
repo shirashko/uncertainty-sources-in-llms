@@ -1,10 +1,11 @@
 import torch
 import os
 import json
-import re
-import random
 from typing import List, Dict, Any, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import re
+import random
+
 
 class UncertaintyStudyManager:
     """
@@ -29,48 +30,6 @@ class UncertaintyStudyManager:
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-
-    @staticmethod
-    def clean_to_declarative(question: str) -> str:
-        """
-        Rewrites questions into diverse declarative formats to prevent syntactic bias.
-        Ensures results capture semantic uncertainty rather than pattern matching.
-        """
-        q = question.strip()
-        if q.endswith("?"):
-            q = q[:-1]
-
-        # Randomized templates for common PopQA categories [cite: 11]
-        if 'occupation' in q.lower() or 'profession' in q.lower():
-            name = re.sub(r"^(What is |Who is )", "", q, flags=re.IGNORECASE).replace("'s occupation", "").strip()
-            return random.choice([
-                f"The occupation of {name} is",
-                f"By profession, {name} is a",
-                f"{name} works as a",
-                f"The job held by {name} is"
-            ])
-
-        if 'born' in q.lower() or 'birth' in q.lower():
-            name = re.sub(r"^(In what city was |Where was |What is the birthplace of )", "", q, flags=re.IGNORECASE).replace(" born", "").strip()
-            return random.choice([
-                f"{name} was born in the city of",
-                f"The birthplace of {name} is",
-                f"{name} originally comes from"
-            ])
-
-        if 'capital' in q.lower() or 'location' in q.lower():
-            place = re.sub(r"^(What is the capital of |Where is )", "", q, flags=re.IGNORECASE).strip()
-            return random.choice([
-                f"The capital city of {place} is",
-                f"Located in {place}, the main city is",
-                f"{place}'s capital is"
-            ])
-
-        # General declarative fallback
-        q_clean = re.sub(r"^(What|Who|When|Where|How) (is|was|did|does) ", "", q, flags=re.IGNORECASE).strip()
-        if q_clean.lower().endswith(" is") or q_clean.lower().endswith(" was"):
-            return q_clean
-        return f"{q_clean} is"
 
     def get_inference_data(self, text: str) -> Dict[str, Any]:
         """Runs a forward pass to extract confidence and the final hidden state."""
@@ -127,3 +86,36 @@ class UncertaintyStudyManager:
                 f_master.write(json.dumps(item) + "\n")
 
         print(f"Done: {len(data)} records saved to {specific_path} and appended to {master_path}")
+
+    @staticmethod
+    def clean_to_declarative(question: str) -> str:
+        """Purifies interrogative queries into diverse declarative completions."""
+        q = question.strip().replace("?", "")
+
+        # 1. Occupation
+        if 'occupation' in q.lower():
+            name = re.sub(r"^(What is |Who is )", "", q, flags=re.IGNORECASE).replace("'s occupation", "").strip()
+            return random.choice([f"The occupation of {name} is", f"{name} works as a", f"By profession, {name} is a"])
+
+        # 2. Birthplace / Location
+        if 'born' in q.lower() or 'birthplace' in q.lower() or 'location' in q.lower():
+            subject = re.sub(r"^(In what city was |Where was |What is the location of )", "", q,
+                             flags=re.IGNORECASE).replace(" born", "").strip()
+            return random.choice(
+                [f"The location of {subject} is", f"{subject} is located in", f"The origin of {subject} is"])
+
+        # 3. Religion
+        if 'religion' in q.lower():
+            name = re.sub(r"^(What is the religion of |What religion is )", "", q, flags=re.IGNORECASE).strip()
+            return random.choice([f"The religious affiliation of {name} is", f"{name} follows the religion of"])
+
+        # 4. Creative Works (Genre/Author/Producer)
+        if any(word in q.lower() for word in ['genre', 'author', 'producer', 'director']):
+            match = re.search(r"(?:genre|author|producer|director) (?:of|is) (.*)", q, re.IGNORECASE)
+            work = match.group(1).strip() if match else q
+            return random.choice(
+                [f"The category of {work} is", f"The person responsible for {work} is", f"{work} was created by"])
+
+        # General fallback
+        q_clean = re.sub(r"^(What|Who|When|Where|How) (is|was|did|does) ", "", q, flags=re.IGNORECASE).strip()
+        return f"{q_clean} is"

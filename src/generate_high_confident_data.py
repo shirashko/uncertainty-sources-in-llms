@@ -1,74 +1,55 @@
 import os
 import torch
-from data_generation import UncertaintyStudyManager
+from datasets import load_dataset
 from config import MODEL_ID
-
-# High-confidence prompts
-BASELINE_PROMPTS = [
-                    # Idioms
-                    "The Great Wall of",
-                    "To be or not to",
-                    "Once upon a",
-                    "The sun rises in the",
-                    "In the nick of",
-                    "A piece of",
-                    "The United States of",
-                    "Better late than"
-                    # induction
-                    "The recipe calls for flour, sugar, and butter. Mix the flour, sugar, and",
-                    "Input: Red, Output: Apple. Input: Yellow, Output: Banana. Input: Green, Output:",
-                    "The sequence is 1, 2, 3, 4. The next number is",
-                    "Alice went to the store. Alice bought an apple. Alice bought a",
-                    "Paris is in France. Rome is in Italy. Berlin is in",
-                    #facts
-                    "The largest planet in our solar system is",
-                    "The chemical symbol for water is",
-                    "The capital of the United Kingdom is",
-                    "The first month of the year is",
-                    "The capital of Germany is",
-                    "The currency used in Japan is the",
-                    "The author of the play Romeo and Juliet is William",
-                    "Water freezes at zero degrees",
-                    "The speed of light in a"
-                    # Sequences
-                    "One, two, three, four, five, six,",
-                    "Monday, Tuesday, Wednesday, Thursday,",
-                    "January, February, March, April, May,",
-                    "A, B, C, D, E, F,"
-                    # very strong syntactic constraints
-                    "Neither here nor",
-                    "Between a rock and a hard",
-                    "An eye for an",
-                    "The more the",
-                    "From head to",
-                   ]
+from data_generation import UncertaintyStudyManager
 
 
-def main():
+def main(n_samples=200):
     manager = UncertaintyStudyManager(model_name=MODEL_ID)
 
+    # We want "normal" certain behavior. 0.80 is a good threshold for C4.
+    CONF_THRESHOLD = 0.80
     baseline_results = []
     activations = []
-    threshold = 0.75
 
-    print(f"--- Generating Baseline Dataset for {manager.model_tag} ---")
-    for p in BASELINE_PROMPTS:
-        res = manager.get_inference_data(p)
-        if res["confidence"] > threshold:
+    print(f"--- Generating C4 Baseline for {manager.model_tag} ---")
+
+    # Streaming C4 to avoid downloading 300GB+
+    ds = load_dataset("allenai/c4", "en", split="train", streaming=True)
+
+    count = 0
+    for item in ds:
+        text = item['text']
+        # Take a snippet (first 15-20 words) to use as a prompt
+        words = text.split()
+        if len(words) < 25: continue
+
+        prompt = " ".join(words[:20])
+        res = manager.get_inference_data(prompt)
+
+        if res["confidence"] > CONF_THRESHOLD:
             baseline_results.append({
-                "prompt": p, "prediction": res["prediction"], "confidence": res["confidence"], "type": "baseline"
+                "prompt": prompt,
+                "prediction": res["prediction"],
+                "confidence": res["confidence"],
+                "type": "baseline",
+                "source": "c4"
             })
             activations.append(res["activation"])
+            count += 1
+            if count % 20 == 0:
+                print(f"  Captured {count}/{n_samples} C4 samples...")
 
-    # Save mean anchor for residual analysis
+        if count >= n_samples:
+            break
+
     if activations:
         x_base = torch.stack(activations).mean(dim=0)
         torch.save(x_base, os.path.join(manager.data_dir, "common_certainty_baseline.pt"))
-
-    # Save metadata
-    manager.export_json(baseline_results, "baseline_inputs.json")
-    print(f"Done! Saved {len(baseline_results)} samples.")
+        manager.export_json(baseline_results, "baseline_inputs.json")
+        print(f"Success! Saved {len(baseline_results)} C4 baseline samples.")
 
 
 if __name__ == "__main__":
-    main()
+    main(n_samples=200)
