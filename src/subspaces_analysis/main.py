@@ -1,9 +1,12 @@
 import os
 from datetime import datetime
+import pandas as pd
 from src.config import MODEL_ID, MODEL_NAME
 from src.subspaces_analysis.subspace_benchmark import run_triple_experiment
 from uncertainty_engine import UncertaintyAnalyzer
 from probe import run_probing_experiment
+from intervention import run_causal_intervention, plot_steering_results
+from neuron_attribution import get_top_uncertainty_neurons
 
 # Effective null space dimensionality (k) found for each model type
 MODEL_TO_NULL_SPACE_DIM = {
@@ -16,17 +19,15 @@ MODEL_TO_NULL_SPACE_DIM = {
 
 def main():
     # --- DYNAMIC PATH LOGIC ---
-    # Ensure the script locates data within the src/data directory relative to project root
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(current_dir))
 
     DATA_PATH = os.path.join(project_root, "src", "data", MODEL_NAME, "uncertainty_study_dataset.jsonl")
     BASELINE_PATH = os.path.join(project_root, "src", "data", MODEL_NAME, "baseline_dataset.jsonl")
 
-    # Path validation before loading the heavy model
+    # Path validation
     if not os.path.exists(DATA_PATH) or not os.path.exists(BASELINE_PATH):
         print(f"❌ ERROR: Dataset files not found!")
-        print(f"Looked in: {os.path.join(project_root, 'src', 'data', MODEL_NAME)}")
         return
 
     # --- INITIALIZATION ---
@@ -34,40 +35,57 @@ def main():
     output_dir = os.path.join(project_root, "results", f"{MODEL_NAME}_exp_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
-    # Set k dimension based on model name (defaults to 5)
     k_dim = MODEL_TO_NULL_SPACE_DIM.get(MODEL_NAME, 5)
 
     print(f"🚀 Initializing Analyzer for {MODEL_ID} (k={k_dim})")
     analyzer = UncertaintyAnalyzer(model_name=MODEL_ID, k=k_dim)
 
-    # --- STEP 1: GEOMETRIC ANALYSIS (PCA & Cosine Similarity) ---
+    # --- STEP 1: GEOMETRIC ANALYSIS ---
+    # PCA & Cosine Similarity across subspaces
     print(f"\n📊 Running Subspace Benchmark (Geometric Analysis)...")
-    # Returns both the summary metrics and the activation storage for probing
     summary_df, storage = run_triple_experiment(analyzer, DATA_PATH, BASELINE_PATH, output_dir)
 
-    # Save and display geometric results
-    csv_save_path = os.path.join(output_dir, "subspace_metrics.csv")
-    summary_df.to_csv(csv_save_path, index=False)
-
-    print("\n" + "=" * 90)
-    print(f"✅ Geometric Experiment Complete - Results saved to: {output_dir}")
-    print("=" * 90)
-    formatted_df = summary_df.sort_values(by=["Mode", "Space"])
-    print(formatted_df.to_string(index=False))
-    print("=" * 90)
+    summary_df.to_csv(os.path.join(output_dir, "subspace_metrics.csv"), index=False)
+    print(summary_df.sort_values(by=["Mode", "Space"]).to_string(index=False))
 
     # --- STEP 2: FUNCTIONAL TEST (Linear Probing) ---
-    # Testing if Epistemic vs Aleatoric uncertainty is distinguishable in each subspace
+    # Epistemic vs Aleatoric distinguishability
     print("\n🧠 Starting Linear Probing (Epistemic vs Aleatoric)...")
-    probing_results = run_probing_experiment(storage)
+    probing_results_df, probing_models_dict = run_probing_experiment(storage)
 
-    # Save probing results
-    probing_results.to_csv(os.path.join(output_dir, "probing_results.csv"), index=False)
+    probing_results_df.to_csv(os.path.join(output_dir, "probing_results.csv"), index=False)
+    print(probing_results_df.to_string(index=False))
 
-    print("\n--- Probing Results (with Shuffled Control) ---")
-    print(probing_results.to_string(index=False))
-    print("=" * 90)
-    print(f"All results, plots, and tables are available in: {output_dir}")
+    # --- STEP 3: NEURON ATTRIBUTION ---
+    # Identifying the most influential dimensions in the Null Space
+    print("\n🔍 Identifying key uncertainty neurons in the Null Space...")
+    top_neurons = get_top_uncertainty_neurons(probing_models_dict, top_k=10)
+
+    with open(os.path.join(output_dir, "top_neurons.txt"), "w") as f:
+        f.write(f"Top 10 Uncertainty Neurons for {MODEL_NAME}:\n")
+        f.write(", ".join(map(str, top_neurons)))
+
+    # --- STEP 4: CAUSAL INTERVENTION (STEERING) ---
+    # Proving the Null Space causally regulates entropy
+    print("\n" + "=" * 90)
+    print("🧪 Starting Causal Intervention (Steering Experiment)")
+
+    test_prompts = [
+        "The capital of France is", "The sun rises in the", "Water boils at",
+        "The opposite of up is", "The color of the sky is", "Two plus two equals",
+        "The earth revolves around the", "Humans breathe",
+    ]
+
+    steering_df = run_causal_intervention(analyzer, storage, test_prompts, alphas=[0, 5, 10, 20])
+
+    steering_csv_path = os.path.join(output_dir, "steering_results.csv")
+    steering_df.to_csv(steering_csv_path, index=False)
+
+    # Generate visualization for the thesis
+    plot_steering_results(steering_csv_path)
+
+    print("\n" + "=" * 90)
+    print(f"✨ FULL EXPERIMENT COMPLETE. Results in: {output_dir}")
 
 
 if __name__ == "__main__":

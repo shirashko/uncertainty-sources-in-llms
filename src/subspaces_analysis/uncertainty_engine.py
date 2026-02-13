@@ -35,11 +35,18 @@ class UncertaintyAnalyzer:
 
     @torch.no_grad()
     def get_activation(self, prompt):
-        """Extracts the final normalized residual stream activation."""
+        """
+        Extracts the raw residual stream activation BEFORE the final
+        LayerNorm, as suggested by Stolfo et al. (2024).
+        """
         _, cache = self.model.run_with_cache(prompt)
 
-        # Use the dynamically determined hook name
-        hook_key = f"{self.final_ln_name}.hook_normalized"
+        # The raw residual stream is the output of the final transformer block.
+        # This is where entropy neurons have finished writing their signal.
+        final_block_index = self.model.cfg.n_layers - 1
+        hook_key = f"blocks.{final_block_index}.hook_resid_post"
+
+        # Extract the activation of the final token in the sequence
         return cache[hook_key][0, -1, :]
 
     def project_null(self, vector):

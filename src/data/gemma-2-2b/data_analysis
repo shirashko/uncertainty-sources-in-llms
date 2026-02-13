@@ -1,0 +1,39 @@
+--- Confidence Analysis ---
+               mean       std       min       max
+type
+aleatoric  0.223288  0.108718  0.043182  0.759277
+baseline   0.927913  0.060651  0.800781  0.999512
+epistemic  0.245882  0.141221  0.044342  0.876465
+
+--- Most Frequent Top-1 Predictions ---
+
+Type: BASELINE
+  - ' to': 35 times
+  - ' of': 31 times
+  - ' the': 16 times
+  - ' ': 16 times
+  - ' and': 8 times
+
+Type: EPISTEMIC
+  - ' a': 126 times
+  - ' the': 62 times
+  - ' located': 15 times
+  - ' Senior': 6 times
+  - ' unknown': 4 times
+
+Type: ALEATORIC
+  - ' a': 155 times
+  - ' the': 49 times
+  - ' ': 24 times
+  - ' it': 18 times
+  - '
+
+': 6 times
+
+Uncertainty Rate (conf < 0.3) for baseline: 0.00%
+
+Uncertainty Rate (conf < 0.3) for epistemic: 81.25%
+
+Uncertainty Rate (conf < 0.3) for aleatoric: 80.67%
+
+Process finished with exit code 0
