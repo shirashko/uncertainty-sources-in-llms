@@ -2,10 +2,14 @@ import os
 from datetime import datetime
 from uncertainty_engine import UncertaintyAnalyzer
 from subspace_benchmark import run_triple_experiment
+from src.config import MODEL_ID, MODEL_NAME
 
-MODEL_ID = "google/gemma-2-2b"
-MODEL_NAME = "gemma-2-2b"
-MODEL_TO_NULL_SPACE_DIM = {"gemma-2-2b": 5, "gpt-2": 12}
+MODEL_TO_NULL_SPACE_DIM = {
+    "gemma-2-2b": 5,
+    "gpt2": 12,
+    "llama-2-7b": 40,
+    "pythia-410m": 12,
+}
 
 def main():
     DATA_PATH = f"data/{MODEL_NAME}/uncertainty_study_dataset.jsonl"

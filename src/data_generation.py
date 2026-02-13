@@ -1,65 +1,26 @@
 import torch
 import os
 import json
-import numpy as np
 import re
+import random
 from typing import List, Dict, Any, Optional
-from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from datasets import load_dataset
-
-
-BASELINE_PROMPTS = [
-                    # Idioms
-                    "The Great Wall of",
-                    "To be or not to",
-                    "Once upon a",
-                    "The sun rises in the",
-                    "In the nick of",
-                    "A piece of",
-                    "The United States of",
-                    "Better late than"
-                    # induction
-                    "The recipe calls for flour, sugar, and butter. Mix the flour, sugar, and",
-                    "Input: Red, Output: Apple. Input: Yellow, Output: Banana. Input: Green, Output:",
-                    "The sequence is 1, 2, 3, 4. The next number is",
-                    "Alice went to the store. Alice bought an apple. Alice bought a",
-                    "Paris is in France. Rome is in Italy. Berlin is in",
-                    #facts
-                    "The largest planet in our solar system is",
-                    "The chemical symbol for water is",
-                    "The capital of the United Kingdom is",
-                    "The first month of the year is",
-                    "The capital of Germany is",
-                    "The currency used in Japan is the",
-                    "The author of the play Romeo and Juliet is William",
-                    "Water freezes at zero degrees",
-                    "The speed of light in a"
-                    # Sequences
-                    "One, two, three, four, five, six,",
-                    "Monday, Tuesday, Wednesday, Thursday,",
-                    "January, February, March, April, May,",
-                    "A, B, C, D, E, F,"
-                    # very strong syntactic constraints
-                    "Neither here nor",
-                    "Between a rock and a hard",
-                    "An eye for an",
-                    "The more the",
-                    "From head to",
-                   ]
 
 class UncertaintyStudyManager:
+    """
+    Core engine for uncertainty analysis.
+    Handles model loading, diverse declarative cleaning, and activation extraction.
+    """
     def __init__(self, model_name: str, device: Optional[str] = None):
         self.device = device or ("mps" if torch.backends.mps.is_available() else "cpu")
-        print(f"Initializing model: {model_name} on {self.device}")
+        print(f"Initializing engine: {model_name} on {self.device}")
 
-        # Creating a unique directory for each model (e.g., data/Llama-3.2-1B)
         self.model_tag = model_name.split("/")[-1]
         self.data_dir = os.path.join("data", self.model_tag)
         os.makedirs(self.data_dir, exist_ok=True)
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        # Using half-precision (float16) to speed up M4 performance and save memory
+        # Using float16 for M4 efficiency and memory management
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16
@@ -71,37 +32,53 @@ class UncertaintyStudyManager:
 
     @staticmethod
     def clean_to_declarative(question: str) -> str:
-        """Purifies interrogative queries into declarative completions."""
+        """
+        Rewrites questions into diverse declarative formats to prevent syntactic bias.
+        Ensures results capture semantic uncertainty rather than pattern matching.
+        """
         q = question.strip()
         if q.endswith("?"):
             q = q[:-1]
 
-        # Mapping logic for specific domains
-        if 'occupation' in q.lower():
+        # Randomized templates for common PopQA categories [cite: 11]
+        if 'occupation' in q.lower() or 'profession' in q.lower():
             name = re.sub(r"^(What is |Who is )", "", q, flags=re.IGNORECASE).replace("'s occupation", "").strip()
-            return f"The occupation of {name} is"
+            return random.choice([
+                f"The occupation of {name} is",
+                f"By profession, {name} is a",
+                f"{name} works as a",
+                f"The job held by {name} is"
+            ])
 
-        if 'born' in q.lower():
-            name = re.sub(r"^(In what city was |Where was )", "", q, flags=re.IGNORECASE).replace(" born", "").strip()
-            return f"{name} was born in the city of"
+        if 'born' in q.lower() or 'birth' in q.lower():
+            name = re.sub(r"^(In what city was |Where was |What is the birthplace of )", "", q, flags=re.IGNORECASE).replace(" born", "").strip()
+            return random.choice([
+                f"{name} was born in the city of",
+                f"The birthplace of {name} is",
+                f"{name} originally comes from"
+            ])
 
-        if 'genre' in q.lower():
-            work = re.sub(r"^What genre is ", "", q, flags=re.IGNORECASE).strip()
-            return f"The genre of {work} is"
+        if 'capital' in q.lower() or 'location' in q.lower():
+            place = re.sub(r"^(What is the capital of |Where is )", "", q, flags=re.IGNORECASE).strip()
+            return random.choice([
+                f"The capital city of {place} is",
+                f"Located in {place}, the main city is",
+                f"{place}'s capital is"
+            ])
 
-        # General fallback
-        q = re.sub(r"^(What|Who|When|Where|How) (is|was|did|does) ", "", q, flags=re.IGNORECASE).strip()
-        if q.lower().endswith(" is") or q.lower().endswith(" was"):
-            return q
-        return f"{q} is"
+        # General declarative fallback
+        q_clean = re.sub(r"^(What|Who|When|Where|How) (is|was|did|does) ", "", q, flags=re.IGNORECASE).strip()
+        if q_clean.lower().endswith(" is") or q_clean.lower().endswith(" was"):
+            return q_clean
+        return f"{q_clean} is"
 
     def get_inference_data(self, text: str) -> Dict[str, Any]:
-        """Extracts model confidence and hidden states for the last token."""
+        """Runs a forward pass to extract confidence and the final hidden state."""
         inputs = self.tokenizer(text, return_tensors="pt").to(self.device)
         with torch.no_grad():
             outputs = self.model(**inputs, output_hidden_states=True)
 
-            # Calculate softmax probabilities for the final predicted token
+            # Extract logit probability for the final predicted token [cite: 93]
             probs = torch.softmax(outputs.logits[0, -1, :], dim=-1)
             conf, token_id = torch.max(probs, dim=-1)
 
@@ -109,81 +86,44 @@ class UncertaintyStudyManager:
                 "confidence": conf.item(),
                 "token_id": token_id.item(),
                 "prediction": self.tokenizer.decode(token_id),
-                "activation": outputs.hidden_states[-1][0, -1, :].cpu(),
+                "activation": outputs.hidden_states[-1][0, -1, :].cpu(), # Move to CPU for storage
                 "input_ids": inputs["input_ids"][0].tolist()
-
             }
 
-    def run_study(self, n_samples: int = 300, threshold: float = 0.75):
-        baseline_results = []
-        activations_list = []
-        print(f"Analyzing Baseline for {self.model_tag}...")
+    def export_json(self, data: List[Dict], filename: str):
+        """Standardized export for baseline results."""
+        path = os.path.join(self.data_dir, filename)
+        with open(path, "w") as f:
+            json.dump(data, f, indent=4)
+        print(f"Exported {len(data)} records to {path}")
 
-        for p in tqdm(BASELINE_PROMPTS):
-            res = self.get_inference_data(p)
-            if res["confidence"] > threshold:
-                activations_list.append(res["activation"])
-                baseline_results.append({
-                    "prompt": p,
-                    "prediction": res["prediction"],
-                    "confidence": res["confidence"]
-                })
+    def export_jsonl(self, data: List[Dict], filename: str):
+        """
+        Standardized export for uncertainty datasets.
+        Writes to a specific file (overwrite) and appends to a master study file.
+        """
+        # 1. Path for the specific file (e.g., epistemic_dataset.jsonl)
+        specific_path = os.path.join(self.data_dir, filename)
 
-        # Save model-specific baseline anchor
-        if activations_list:
-            x_base = torch.stack(activations_list).mean(dim=0)
-            torch.save(x_base, os.path.join(self.data_dir, "common_certainty_baseline.pt"))
+        # 2. Path for the master combined file (e.g., uncertainty_study_dataset.jsonl)
+        master_path = os.path.join(self.data_dir, "uncertainty_study_dataset.jsonl")
 
-        uncertain_data = self._load_datasets(n_samples)
-        final_uncertain_records = []
-        stats = {"baseline": [r["confidence"] for r in baseline_results], "epistemic": [], "aleatoric": []}
+        # Deep copy or handle data to ensure tensors are converted only once for JSON
+        processed_data = []
+        for item in data:
+            # Convert activation tensors to lists for JSON serialization
+            if "activation" in item and isinstance(item["activation"], torch.Tensor):
+                item["activation"] = item["activation"].tolist()
+            processed_data.append(item)
 
-        print("Analyzing Uncertainty datasets...")
-        for item in tqdm(uncertain_data):
-            res = self.get_inference_data(item["prompt"])
-            stats[item["type"]].append(res["confidence"])
-            final_uncertain_records.append({**item, "confidence": res["confidence"]})
+        # Write to the specific file (Mode 'w' - overwrites each run)
+        with open(specific_path, "w") as f_spec:
+            for item in processed_data:
+                f_spec.write(json.dumps(item) + "\n")
 
-        # Export using the dynamic path
-        self.export_results(baseline_results, final_uncertain_records, stats)
+        # Append to the master study file (Mode 'a' - adds to existing content)
+        with open(master_path, "a") as f_master:
+            for item in processed_data:
+                f_master.write(json.dumps(item) + "\n")
 
-    def export_results(self, baseline, uncertain, stats):
-        """Saves results into the model-specific data directory."""
-        with open(os.path.join(self.data_dir, "baseline_inputs.json"), "w") as f:
-            json.dump(baseline, f, indent=4)
-
-        with open(os.path.join(self.data_dir, "uncertainty_study_dataset.jsonl"), "w") as f:
-            for item in uncertain:
-                f.write(json.dumps(item) + "\n")
-
-        print("\n" + "=" * 50)
-        print(f"Summary for Model: {self.model_tag}")
-        print("-" * 50)
-        for cat, scores in stats.items():
-            avg = np.mean(scores) if scores else 0
-            print(f"{cat.capitalize():<15} | {len(scores):<8} | {avg:.4f}")
-        print("=" * 50)
-
-    def _load_datasets(self, n_samples: int) -> List[Dict[str, str]]:
-        """Handles external dataset loading and preprocessing."""
-        data = []
-        # Epistemic (PopQA)
-        popqa = load_dataset("akariasai/PopQA", split="test")
-        epistemic = popqa.filter(lambda x: x['s_pop'] < 100).select(range(min(n_samples, len(popqa))))
-        for item in epistemic:
-            data.append({"prompt": self.clean_to_declarative(item['question']), "type": "epistemic"})
-
-        # Aleatoric (AmbigQA)
-        ambigqa = load_dataset("sewon/ambig_qa", "light", split="train")
-        aleatoric = ambigqa.filter(lambda x: 'multipleQAs' in x['annotations']['type']).select(
-            range(min(n_samples, len(ambigqa))))
-        for item in aleatoric:
-            data.append({"prompt": self.clean_to_declarative(item['question']), "type": "aleatoric"})
-
-        return data
-
-if __name__ == "__main__":
-    # Make sure you are logged in via `huggingface-cli login`
-    model_id = "meta-llama/Llama-3.2-1B"
-    analyzer = UncertaintyStudyManager(model_name=model_id)
-    analyzer.run_study(n_samples=100)
+        print(f"Done: {len(data)} records saved to {specific_path} and appended to {master_path}")
