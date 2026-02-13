@@ -109,7 +109,7 @@ def run_triple_experiment(analyzer, data_path, baseline_path, output_dir):
             })
 
     # Return summary for the final table
-    return pd.DataFrame(all_metrics)
+    return pd.DataFrame(all_metrics), storage
 
 
 def _plot_pca(vec_list, labels, full_name, output_dir):
