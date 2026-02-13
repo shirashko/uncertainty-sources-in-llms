@@ -18,22 +18,32 @@ def run_triple_experiment(analyzer, data_path, baseline_path, output_dir):
     categories = ["baseline", "epistemic", "aleatoric"]
     storage = {cat: {"orig": [], "null": [], "logits": []} for cat in categories}
 
-    print("Extracting activations...")
-    # Collect data for all categories
-    for item in baseline_raw + dataset:
+    print(f"Extracting activations for {analyzer.model.cfg.model_name}...")
+
+    # Process all samples and project them into identified subspaces
+    for item in tqdm(baseline_raw + dataset):
         cat = item.get('type', 'baseline')
         if cat in storage:
+            # Extract activation and ensure it's on CPU for Numpy compatibility
             x = analyzer.get_activation(item['prompt'])
-            storage[cat]["orig"].append(x.cpu().numpy())
-            storage[cat]["null"].append(analyzer.project_null(x).cpu().numpy())
-            storage[cat]["logits"].append(analyzer.project_logits(x).cpu().numpy())
+
+            # Project using the analyzer's pre-computed matrices
+            x_null = analyzer.project_null(x)
+            x_logits = analyzer.project_logits(x)
+
+            # Store as CPU numpy arrays to save GPU/MPS memory
+            storage[cat]["orig"].append(x.detach().cpu().numpy())
+            storage[cat]["null"].append(x_null.detach().cpu().numpy())
+            storage[cat]["logits"].append(x_logits.detach().cpu().numpy())
 
     all_metrics = []
-    # Comparative analysis: Original vs. Baseline-subtracted
+
+    # Compare Absolute positions vs. Residual (centered) activations
     for mode in ["Absolute", "Residual"]:
         mode_dir = os.path.join(output_dir, mode.lower())
         os.makedirs(mode_dir, exist_ok=True)
 
+        # Calculate means based on the baseline category for residual subtraction
         base_means = {k: np.mean(storage["baseline"][k], axis=0) for k in ["orig", "null", "logits"]}
         spaces = [("orig", "Original"), ("null", "Null"), ("logits", "Logits")]
 
@@ -41,20 +51,22 @@ def run_triple_experiment(analyzer, data_path, baseline_path, output_dir):
             if mode == "Absolute":
                 vec_list = [np.stack(storage[cat][key]) for cat in categories]
             else:
+                # Subtract baseline mean to isolate the specific uncertainty signal
                 vec_list = [np.stack(storage[cat][key]) - base_means[key] for cat in categories]
 
-            # Intra-group similarity
+            # Intra-group similarity: How consistent is the uncertainty signal?
             intra = {}
             for i, cat in enumerate(categories):
                 sim_m = cosine_similarity(vec_list[i])
                 np.fill_diagonal(sim_m, 0)
                 intra[cat] = sim_m[sim_m != 0].mean()
 
-            # Inter-group similarity
+            # Inter-group similarity: Does uncertainty overlap with the baseline?
             sim_base_epi = cosine_similarity(vec_list[0], vec_list[1]).mean()
             sim_base_ale = cosine_similarity(vec_list[0], vec_list[2]).mean()
             sim_epi_ale = cosine_similarity(vec_list[1], vec_list[2]).mean()
 
+            # Generate and save PCA visualizations for each subspace/mode
             _plot_pca(vec_list, categories, f"{mode}_{name}", mode_dir)
 
             all_metrics.append({
@@ -69,7 +81,6 @@ def run_triple_experiment(analyzer, data_path, baseline_path, output_dir):
             })
 
     return pd.DataFrame(all_metrics)
-
 
 def _plot_pca(vec_list, labels, full_name, output_dir):
     all_vecs = np.vstack(vec_list)
