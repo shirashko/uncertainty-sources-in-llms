@@ -6,7 +6,7 @@ from src.config import MODEL_ID
 class UncertaintyAnalyzer:
     def __init__(self, model_name=MODEL_ID, k=5):
         self.device = "mps" if torch.backends.mps.is_available() else "cpu"
-
+        self.model_tag = model_name.split("/")[-1]
         # Load model
         self.model = HookedTransformer.from_pretrained(model_name, device=self.device)
         self.k = k
