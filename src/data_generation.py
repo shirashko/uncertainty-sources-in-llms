@@ -48,42 +48,24 @@ BASELINE_PROMPTS = [
                     "From head to",
                    ]
 
-
-def export_results(baseline, uncertain, stats):
-    """Saves logs and prints formatted summary table."""
-    with open("data/baseline_inputs.json", "w") as f:
-        json.dump(baseline, f, indent=4)
-
-    with open("data/uncertainty_study_dataset.jsonl", "w") as f:
-        for item in uncertain:
-            f.write(json.dumps(item) + "\n")
-
-    print("\n" + "=" * 50)
-    print(f"{'Category':<15} | {'Count':<8} | {'Avg Confidence':<15}")
-    print("-" * 50)
-    for cat, scores in stats.items():
-        avg = np.mean(scores) if scores else 0
-        print(f"{cat.capitalize():<15} | {len(scores):<8} | {avg:.4f}")
-    print("=" * 50)
-
-
 class UncertaintyStudyManager:
-    """
-    A manager to analyze LLM uncertainty across different models.
-    Supports model-agnostic loading and automated prompt cleaning.
-    """
-
     def __init__(self, model_name: str, device: Optional[str] = None):
-        self.device = device or (
-            "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device or ("mps" if torch.backends.mps.is_available() else "cpu")
         print(f"Initializing model: {model_name} on {self.device}")
 
+        # Creating a unique directory for each model (e.g., data/Llama-3.2-1B)
+        self.model_tag = model_name.split("/")[-1]
+        self.data_dir = os.path.join("data", self.model_tag)
+        os.makedirs(self.data_dir, exist_ok=True)
+
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        print(f"Tokenizer loaded: vocab size = {len(self.tokenizer)}")
-        self.model = AutoModelForCausalLM.from_pretrained(model_name).to(self.device)
+        # Using half-precision (float16) to speed up M4 performance and save memory
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16
+        ).to(self.device)
         self.model.eval()
 
-        # Ensure padding token exists (critical for batching and certain models)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -133,12 +115,10 @@ class UncertaintyStudyManager:
             }
 
     def run_study(self, n_samples: int = 300, threshold: float = 0.75):
-        """Main execution pipeline for baseline and uncertainty comparison."""
-        os.makedirs("data", exist_ok=True)
-
         baseline_results = []
         activations_list = []
-        print(f"Analyzing Baseline (Threshold: {threshold})...")
+        print(f"Analyzing Baseline for {self.model_tag}...")
+
         for p in tqdm(BASELINE_PROMPTS):
             res = self.get_inference_data(p)
             if res["confidence"] > threshold:
@@ -146,28 +126,43 @@ class UncertaintyStudyManager:
                 baseline_results.append({
                     "prompt": p,
                     "prediction": res["prediction"],
-                    "confidence": res["confidence"],
-                    "input_ids": res["input_ids"]
+                    "confidence": res["confidence"]
                 })
 
-        # Calculate and save the anchor (x_base)
+        # Save model-specific baseline anchor
         if activations_list:
             x_base = torch.stack(activations_list).mean(dim=0)
-            torch.save(x_base, "data/common_certainty_baseline.pt")
+            torch.save(x_base, os.path.join(self.data_dir, "common_certainty_baseline.pt"))
 
-        # 2. Process Uncertain Samples
         uncertain_data = self._load_datasets(n_samples)
         final_uncertain_records = []
-        data = {"baseline": [r["confidence"] for r in baseline_results], "epistemic": [], "aleatoric": []}
+        stats = {"baseline": [r["confidence"] for r in baseline_results], "epistemic": [], "aleatoric": []}
 
-        print("Analyzing Epistemic and Aleatoric data...")
+        print("Analyzing Uncertainty datasets...")
         for item in tqdm(uncertain_data):
             res = self.get_inference_data(item["prompt"])
-            data[item["type"]].append(res["confidence"])
+            stats[item["type"]].append(res["confidence"])
             final_uncertain_records.append({**item, "confidence": res["confidence"]})
 
-        # 3. Export Results
-        export_results(baseline_results, final_uncertain_records, data)
+        # Export using the dynamic path
+        self.export_results(baseline_results, final_uncertain_records, stats)
+
+    def export_results(self, baseline, uncertain, stats):
+        """Saves results into the model-specific data directory."""
+        with open(os.path.join(self.data_dir, "baseline_inputs.json"), "w") as f:
+            json.dump(baseline, f, indent=4)
+
+        with open(os.path.join(self.data_dir, "uncertainty_study_dataset.jsonl"), "w") as f:
+            for item in uncertain:
+                f.write(json.dumps(item) + "\n")
+
+        print("\n" + "=" * 50)
+        print(f"Summary for Model: {self.model_tag}")
+        print("-" * 50)
+        for cat, scores in stats.items():
+            avg = np.mean(scores) if scores else 0
+            print(f"{cat.capitalize():<15} | {len(scores):<8} | {avg:.4f}")
+        print("=" * 50)
 
     def _load_datasets(self, n_samples: int) -> List[Dict[str, str]]:
         """Handles external dataset loading and preprocessing."""
@@ -188,5 +183,7 @@ class UncertaintyStudyManager:
         return data
 
 if __name__ == "__main__":
-    analyzer = UncertaintyStudyManager(model_name="gpt2")
+    # Make sure you are logged in via `huggingface-cli login`
+    model_id = "meta-llama/Llama-3.2-1B"
+    analyzer = UncertaintyStudyManager(model_name=model_id)
     analyzer.run_study(n_samples=100)
