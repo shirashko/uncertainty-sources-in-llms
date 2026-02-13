@@ -1,2 +1,5 @@
 MODEL_ID = "gpt2"
 MODEL_NAME = "gpt2"
+# MODEL_ID = "meta-llama/Llama-3.2-1B"
+# MODEL_NAME = "Llama-3.2-1B"
+HF_TOKEN = "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"

@@ -6,6 +6,7 @@ import random
 from typing import List, Dict, Any, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
+from config import HF_TOKEN
 
 
 class UncertaintyStudyManager:
@@ -17,10 +18,11 @@ class UncertaintyStudyManager:
         self.data_dir = os.path.join("data", self.model_tag)
         os.makedirs(self.data_dir, exist_ok=True)
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, token=HF_TOKEN)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float16
+            torch_dtype=torch.float16,
+            token=HF_TOKEN,
         ).to(self.device)
         self.model.eval()
 
