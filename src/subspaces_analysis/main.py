@@ -24,7 +24,7 @@ def main():
     DATA_PATH = os.path.join(project_root, "src", "data", MODEL_NAME, "uncertainty_study_dataset.jsonl")
     BASELINE_PATH = os.path.join(project_root, "src", "data", MODEL_NAME, "baseline_dataset.jsonl")
 
-    # Path validation
+    # Path validation before loading heavy models
     if not os.path.exists(DATA_PATH) or not os.path.exists(BASELINE_PATH):
         print(f"❌ ERROR: Dataset files not found!")
         return
@@ -34,38 +34,46 @@ def main():
     output_dir = os.path.join(project_root, "results", f"{MODEL_NAME}_exp_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
 
+    # Set k dimension based on model name
     k_dim = MODEL_TO_NULL_SPACE_DIM.get(MODEL_NAME, 5)
 
     print(f"🚀 Initializing Analyzer for {MODEL_ID} (k={k_dim})")
     analyzer = UncertaintyAnalyzer(model_name=MODEL_ID, k=k_dim)
 
     # --- STEP 1: GEOMETRIC ANALYSIS ---
-    # PCA & Cosine Similarity across subspaces
+    # Measuring alignment between uncertainty types and geometric subspaces
     print(f"\n📊 Running Subspace Benchmark (Geometric Analysis)...")
     summary_df, storage = run_triple_experiment(analyzer, DATA_PATH, BASELINE_PATH, output_dir)
 
     summary_df.to_csv(os.path.join(output_dir, "subspace_metrics.csv"), index=False)
     print(summary_df.sort_values(by=["Mode", "Space"]).to_string(index=False))
 
-    # --- STEP 2: FUNCTIONAL TEST (Linear Probing) ---
-    # Epistemic vs Aleatoric distinguishability
-    print("\n🧠 Starting Linear Probing (Epistemic vs Aleatoric)...")
+    # --- STEP 2: FUNCTIONAL TEST (Two-Task Linear Probing) ---
+    # 1. Detection: Certainty vs Uncertainty
+    # 2. Type: Epistemic vs Aleatoric
+    print("\n🧠 Starting Dual-Task Linear Probing...")
     probing_results_df, probing_models_dict = run_probing_experiment(storage)
 
     probing_results_df.to_csv(os.path.join(output_dir, "probing_results.csv"), index=False)
+    print("\n--- Probing Results ---")
     print(probing_results_df.to_string(index=False))
 
     # --- STEP 3: NEURON ATTRIBUTION ---
-    # Identifying the most influential dimensions in the Null Space
-    print("\n🔍 Identifying key uncertainty neurons in the Null Space...")
-    top_neurons = get_top_uncertainty_neurons(probing_models_dict, top_k=10)
+    # Identifying the "Regulator" neurons (Detection) and "Expert" neurons (Type)
+    print("\n🔍 Analyzing key uncertainty neurons in the Null Space...")
 
-    with open(os.path.join(output_dir, "top_neurons.txt"), "w") as f:
-        f.write(f"Top 10 Uncertainty Neurons for {MODEL_NAME}:\n")
-        f.write(", ".join(map(str, top_neurons)))
+    # 1. Uncertainty Detection Neurons (The Control Switches)
+    regulators = get_top_uncertainty_neurons(
+        probing_models_dict, "Detection (Cert vs Uncert)", "Null Space", output_dir, top_k=10
+    )
+
+    # 2. Uncertainty Type Neurons (The Specialists)
+    specialists = get_top_uncertainty_neurons(
+        probing_models_dict, "Type (Epi vs Alea)", "Null Space", output_dir, top_k=10
+    )
 
     # --- STEP 4: CAUSAL INTERVENTION (STEERING) ---
-    # Proving the Null Space causally regulates entropy
+    # Proving that Null Space signals causally regulate entropy through LayerNorm scaling
     print("\n" + "=" * 90)
     print("🧪 Starting Causal Intervention (Steering Experiment)")
 
@@ -84,7 +92,7 @@ def main():
     plot_steering_results(steering_csv_path)
 
     print("\n" + "=" * 90)
-    print(f"✨ FULL EXPERIMENT COMPLETE. Results in: {output_dir}")
+    print(f"✨ FULL EXPERIMENT COMPLETE. Results saved in: {output_dir}")
 
 
 if __name__ == "__main__":
