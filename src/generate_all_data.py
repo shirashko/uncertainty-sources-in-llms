@@ -11,7 +11,7 @@ def main():
     if os.path.exists(master_path):
         os.remove(master_path)
 
-    N = 300  # Balancing factor
+    N = 200  # Balancing factor
 
     # Generate and save in sequence
     # Use 'a' (append) for everything after the first one
