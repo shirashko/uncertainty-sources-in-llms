@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-import pandas as pd
 from src.config import MODEL_ID, MODEL_NAME
 from src.subspaces_analysis.subspace_benchmark import run_triple_experiment
 from uncertainty_engine import UncertaintyAnalyzer
