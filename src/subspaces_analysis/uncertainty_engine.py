@@ -34,20 +34,20 @@ class UncertaintyAnalyzer:
         return V_null.t() @ V_null
 
     @torch.no_grad()
-    def get_activation(self, prompt):
+    def get_activation(self, prompt, layer_idx=None):
         """
-        Extracts the raw residual stream activation BEFORE the final
-        LayerNorm, as suggested by Stolfo et al. (2024).
+        Extracts residual stream activation at a specific layer.
+        If layer_idx is None, defaults to the final layer.
         """
         _, cache = self.model.run_with_cache(prompt)
 
-        # The raw residual stream is the output of the final transformer block.
-        # This is where entropy neurons have finished writing their signal.
-        final_block_index = self.model.cfg.n_layers - 1
-        hook_key = f"blocks.{final_block_index}.hook_resid_post"
+        if layer_idx is None:
+            layer_idx = self.model.cfg.n_layers - 1
 
-        # Extract the activation of the final token in the sequence
+        hook_key = f"blocks.{layer_idx}.hook_resid_post"
+
         return cache[hook_key][0, -1, :]
+
 
     def project_null(self, vector):
         """Projects vector into the Null Space (P_perp)."""

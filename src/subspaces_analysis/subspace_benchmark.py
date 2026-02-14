@@ -10,13 +10,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.decomposition import PCA
 
 
-def run_triple_experiment(analyzer, data_path, baseline_path, output_dir):
+def run_triple_experiment(analyzer, data_path, baseline_path, output_dir, layers_to_test=None):
     """
-    Runs the full subspace analysis: loading data, projecting activations,
-    calculating similarity metrics, and generating PCA plots.
+    Runs the full subspace analysis across multiple layers.
+    Identifies if uncertainty signals emerge in early, middle, or late stages.
     """
 
-    # 1. Correct JSONL Loading
     def load_jsonl(path):
         data = []
         with open(path, "r") as f:
@@ -25,92 +24,87 @@ def run_triple_experiment(analyzer, data_path, baseline_path, output_dir):
                     data.append(json.loads(line))
         return data
 
+    # Default to analyzing only the final layer if no layers are specified
+    if layers_to_test is None:
+        layers_to_test = [analyzer.model.cfg.n_layers - 1]
+
     print(f"Loading datasets...")
     baseline_raw = load_jsonl(baseline_path)
     dataset_raw = load_jsonl(data_path)
-
     categories = ["baseline", "epistemic", "aleatoric"]
-    # Storage for processed numpy arrays
-    storage = {cat: {"orig": [], "null": [], "logits": []} for cat in categories}
-
-    print(f"Extracting and projecting activations for {analyzer.model_tag}...")
-
-    # 2. Process all samples
-    # We combine them into one loop but sort them into the correct storage 'bucket'
-    for item in tqdm(baseline_raw + dataset_raw):
-        cat = item.get('type', 'baseline')
-        if cat not in storage:
-            continue
-
-        # If the activation is already in the JSON, it's a list; convert to tensor.
-        # If not (e.g., if we were running live), we would use analyzer.get_activation.
-        if "activation" in item:
-            x = torch.tensor(item["activation"]).to(analyzer.device)
-        else:
-            x = analyzer.get_activation(item['prompt'])
-
-        # Project using the analyzer's pre-computed matrices (P_perp and P_parallel)
-        # These are calculated in the UncertaintyAnalyzer class
-        x_null = analyzer.project_null(x)
-        x_logits = analyzer.project_logits(x)
-
-        # Store as CPU numpy arrays for Scikit-Learn compatibility and memory efficiency
-        storage[cat]["orig"].append(x.detach().cpu().numpy())
-        storage[cat]["null"].append(x_null.detach().cpu().numpy())
-        storage[cat]["logits"].append(x_logits.detach().cpu().numpy())
 
     all_metrics = []
+    # Key: layer_idx, Value: storage dict for that layer
+    all_layer_storage = {}
 
-    # 3. Comparative Analysis: Absolute positions vs. Residual (centered)
-    # Residual mode is critical for proving orthogonality in the Null Space
-    for mode in ["Absolute", "Residual"]:
-        print(f"Analyzing {mode} mode...")
-        mode_dir = os.path.join(output_dir, mode.lower())
-        os.makedirs(mode_dir, exist_ok=True)
+    # --- STEP 1: LAYER-WISE DATA EXTRACTION ---
+    for layer_idx in layers_to_test:
+        print(f"\n--- Processing Layer {layer_idx} ---")
+        storage = {cat: {"orig": [], "null": [], "logits": []} for cat in categories}
 
-        # Calculate means based on the baseline (C4) for centering
-        base_means = {k: np.mean(storage["baseline"][k], axis=0) for k in ["orig", "null", "logits"]}
-        spaces = [("orig", "Original"), ("null", "Null"), ("logits", "Logits")]
+        for item in tqdm(baseline_raw + dataset_raw, desc=f"Extracting L{layer_idx}"):
+            cat = item.get('type', 'baseline')
+            if cat not in storage:
+                continue
 
-        for key, name in spaces:
-            # Prepare data matrices
-            if mode == "Absolute":
-                vec_list = [np.stack(storage[cat][key]) for cat in categories]
-            else:
-                # Residual: Subtract the 'Certainty Anchor' (Baseline Mean)
-                vec_list = [np.stack(storage[cat][key]) - base_means[key] for cat in categories]
+            # Extract activation at the specific layer for the terminal token
+            x = analyzer.get_activation(item['prompt'], layer_idx=layer_idx)
 
-            # Intra-group similarity: Consistency of the uncertainty signature
-            # High Intra_Epi means the uncertainty 'direction' is stable across facts
-            intra = {}
-            for i, cat in enumerate(categories):
-                sim_m = cosine_similarity(vec_list[i])
-                np.fill_diagonal(sim_m, 0)  # Don't compare a vector to itself
-                intra[cat] = sim_m[sim_m != 0].mean()
+            # Project into pre-computed Unembedding subspaces
+            x_null = analyzer.project_null(x)
+            x_logits = analyzer.project_logits(x)
 
-            # Inter-group similarity: Overlap between different states
-            # We expect Inter_Base_Epi to be near 0 in 'Null' 'Residual' mode (Orthogonality)
-            sim_base_epi = cosine_similarity(vec_list[0], vec_list[1]).mean()
-            sim_base_ale = cosine_similarity(vec_list[0], vec_list[2]).mean()
-            sim_epi_ale = cosine_similarity(vec_list[1], vec_list[2]).mean()
+            storage[cat]["orig"].append(x.detach().cpu().numpy())
+            storage[cat]["null"].append(x_null.detach().cpu().numpy())
+            storage[cat]["logits"].append(x_logits.detach().cpu().numpy())
 
-            # 4. Generate Visualizations
-            _plot_pca(vec_list, categories, f"{mode}_{name}", mode_dir)
+        all_layer_storage[layer_idx] = storage
 
-            all_metrics.append({
-                "Mode": mode,
-                "Space": name,
-                "Intra_Base": intra["baseline"],
-                "Intra_Epi": intra["epistemic"],
-                "Intra_Ale": intra["aleatoric"],
-                "Inter_Base_Epi": sim_base_epi,
-                "Inter_Base_Ale": sim_base_ale,
-                "Inter_Epi_Ale": sim_epi_ale
-            })
+        # --- STEP 2: GEOMETRIC ANALYSIS PER LAYER ---
+        for mode in ["Absolute", "Residual"]:
+            mode_dir = os.path.join(output_dir, f"layer_{layer_idx}", mode.lower())
+            os.makedirs(mode_dir, exist_ok=True)
 
-    # Return summary for the final table
-    return pd.DataFrame(all_metrics), storage
+            # Center relative to the Baseline (Certainty) mean for this specific layer
+            base_means = {k: np.mean(storage["baseline"][k], axis=0) for k in ["orig", "null", "logits"]}
+            spaces = [("orig", "Original"), ("null", "Null"), ("logits", "Logits")]
 
+            for key, name in spaces:
+                if mode == "Absolute":
+                    vec_list = [np.stack(storage[cat][key]) for cat in categories]
+                else:
+                    # Subtract Baseline mean to isolate the 'uncertainty steering vector'
+                    vec_list = [np.stack(storage[cat][key]) - base_means[key] for cat in categories]
+
+                # Intra-group similarity: Measures the consistency of the uncertainty signature
+                intra = {}
+                for i, cat in enumerate(categories):
+                    sim_m = cosine_similarity(vec_list[i])
+                    np.fill_diagonal(sim_m, 0)
+                    intra[cat] = sim_m[sim_m != 0].mean()
+
+                # Inter-group similarity: Measures overlap/orthogonality between states
+                sim_base_epi = cosine_similarity(vec_list[0], vec_list[1]).mean()
+                sim_base_ale = cosine_similarity(vec_list[0], vec_list[2]).mean()
+                sim_epi_ale = cosine_similarity(vec_list[1], vec_list[2]).mean()
+
+                # Visualize PCA for this specific layer/space
+                _plot_pca(vec_list, categories, f"L{layer_idx}_{mode}_{name}", mode_dir)
+
+                all_metrics.append({
+                    "Layer": layer_idx,
+                    "Mode": mode,
+                    "Space": name,
+                    "Intra_Base": intra["baseline"],
+                    "Intra_Epi": intra["epistemic"],
+                    "Intra_Ale": intra["aleatoric"],
+                    "Inter_Base_Epi": sim_base_epi,
+                    "Inter_Base_Ale": sim_base_ale,
+                    "Inter_Epi_Ale": sim_epi_ale
+                })
+
+    # Return summary DataFrame and storage of the last processed layer for backward compatibility
+    return pd.DataFrame(all_metrics), all_layer_storage[layers_to_test[-1]]
 
 def _plot_pca(vec_list, labels, full_name, output_dir):
     """Generates 2D PCA plots to visualize subspace clustering."""
