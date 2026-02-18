@@ -52,20 +52,21 @@ class UncertaintyStudyManager:
         q_clean = re.sub(r"^(What|Who|When|Where|How) (is|was|did|does) ", "", q, flags=re.IGNORECASE).strip()
         return f"{q_clean} is"
 
-    def get_inference_data(self, text: str) -> Dict[str, Any]:
+    def get_inference_data(self, text: str, return_activation: bool = False) -> Dict[str, Any]:
         """Runs a forward pass to extract confidence and the final hidden state."""
         inputs = self.tokenizer(text, return_tensors="pt").to(self.device)
         with torch.no_grad():
             outputs = self.model(**inputs, output_hidden_states=True)
             probs = torch.softmax(outputs.logits[0, -1, :], dim=-1)
             conf, token_id = torch.max(probs, dim=-1)
-            return {
+            result = {
                 "confidence": conf.item(),
                 "token_id": token_id.item(),
                 "prediction": self.tokenizer.decode(token_id),
-                "activation": outputs.hidden_states[-1][0, -1, :].cpu(),
-                "input_ids": inputs["input_ids"][0].tolist()
             }
+            if return_activation:
+                result["activation"] = outputs.hidden_states[-1][0, -1, :].cpu()
+            return result
 
     def generate_baseline_c4(self, n_samples: int) -> List[Dict]:
         """Generates high-confidence baseline samples from C4."""
@@ -76,10 +77,10 @@ class UncertaintyStudyManager:
             words = item['text'].split()
             if len(words) < 25: continue
             prompt = " ".join(words[:20])
-            res = self.get_inference_data(prompt)
+            res = self.get_inference_data(prompt, return_activation=True)
             if res["confidence"] > 0.80:
+                activations.append(res.pop("activation"))
                 data.append({**res, "prompt": prompt, "type": "baseline", "source": "c4"})
-                activations.append(res["activation"])
             if len(data) >= n_samples: break
 
         # Save the anchor
@@ -93,14 +94,19 @@ class UncertaintyStudyManager:
         popqa = load_dataset("akariasai/PopQA", split="test")
         all_cats = list(set(popqa['prop']))
         samples_per_cat = n_samples // len(all_cats)
-        data = []
+        data, activations = [], []
         for cat in all_cats:
             filtered = popqa.filter(lambda x: x['prop'] == cat and x['s_pop'] < 100)
             subset = filtered.select(range(min(len(filtered), samples_per_cat)))
             for item in subset:
                 prompt = self.clean_to_declarative(item['question'])
-                res = self.get_inference_data(prompt)
+                res = self.get_inference_data(prompt, return_activation=True)
+                activations.append(res.pop("activation"))
                 data.append({**res, "prompt": prompt, "type": "epistemic", "category": cat})
+
+        # Save the mean activation for epistemic group
+        x_epistemic = torch.stack(activations).mean(dim=0)
+        torch.save(x_epistemic, os.path.join(self.data_dir, "epistemic_certainty_baseline.pt"))
         return data
 
     def generate_aleatoric_ambig(self, n_samples: int) -> List[Dict]:
@@ -108,11 +114,16 @@ class UncertaintyStudyManager:
         print(f"--- Phase 3: Generating Aleatoric AmbigQA ({n_samples} samples) ---")
         ambig = load_dataset("sewon/ambig_qa", "light", split="train")
         raw = ambig.filter(lambda x: 'multipleQAs' in x['annotations']['type']).select(range(n_samples))
-        data = []
+        data, activations = [], []
         for item in raw:
             prompt = self.clean_to_declarative(item['question'])
-            res = self.get_inference_data(prompt)
+            res = self.get_inference_data(prompt, return_activation=True)
+            activations.append(res.pop("activation"))
             data.append({**res, "prompt": prompt, "type": "aleatoric"})
+
+        # Save the mean activation for aleatoric group
+        x_aleatoric = torch.stack(activations).mean(dim=0)
+        torch.save(x_aleatoric, os.path.join(self.data_dir, "aleatoric_certainty_baseline.pt"))
         return data
 
     def export_jsonl(self, data: List[Dict], filename: str, mode: str = 'w'):
@@ -130,4 +141,3 @@ class UncertaintyStudyManager:
             for d in processed: f.write(json.dumps(d) + "\n")
         with open(master_path, mode) as f:
             for d in processed: f.write(json.dumps(d) + "\n")
-
