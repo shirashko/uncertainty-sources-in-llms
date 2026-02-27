@@ -26,7 +26,15 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     # Set k dimension based on model architecture
-    k_dim = 12 if "gpt2" in MODEL_NAME or "llama" in MODEL_NAME else 5
+    k_dim = -1
+    if "gpt2" in MODEL_NAME:
+        k_dim = 12
+    elif "Llama" in MODEL_NAME:
+        k_dim = 4
+    elif "gemma" or "Qwen" in MODEL_NAME:
+        k_dim = 5
+    else:
+        raise Exception(f"Unknown model: {MODEL_NAME}")
     analyzer = UncertaintyAnalyzer(model_name=MODEL_ID, k=k_dim)
 
     # --- LAYER SELECTION ---
