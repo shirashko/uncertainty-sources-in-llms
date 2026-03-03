@@ -43,7 +43,7 @@ def plot_layer_wise_emergence(csv_path, output_dir):
              marker='x', linestyle='-', linewidth=1, label='Baseline Consistency', color='gray', alpha=0.4)
 
     # Thesis Formatting
-    plt.title(f'Comprehensive Uncertainty Geometry Evolution: {MODEL_NAME}', fontsize=16, fontweight='bold')
+    plt.title(f'Layer-wise Emergence of Uncertainty Signatures: \n Intra-class Consistency vs. Source Disentanglement in the Null Space for: {MODEL_NAME} model', fontsize=16, fontweight='bold')
     plt.xlabel('Layer Index', fontsize=14)
     plt.ylabel('Cosine Similarity', fontsize=14)
     plt.ylim(-0.2, 1.1)  # Expanded to show near-zero values clearly
