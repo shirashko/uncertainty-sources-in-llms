@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 import os
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 def run_probing_experiment(storage):
@@ -53,7 +54,7 @@ def run_probing_experiment(storage):
             avg_acc = cv_scores.mean()
             std_acc = cv_scores.std()
 
-            print(f"[{space_label}] CV Accuracy: {avg_acc:.4f} (+/- {std_acc:.4f})")
+            print(f"[{space_label}] CV Accuracy: {avg_acc:.2f} (+/- {std_acc:.2f})")
 
             # 4. Final Fit and Storage
             # We fit on the FULL data once more to save the "best" coefficients for steering/analysis
@@ -62,8 +63,8 @@ def run_probing_experiment(storage):
             results_list.append({
                 "Task": task_name,
                 "Space": space_label,
-                "Accuracy": avg_acc,
-                "Std Dev": std_acc
+                "Accuracy": round(avg_acc, 2),
+                "Std Dev": round(std_acc, 2)
             })
 
             # Save the model and its metadata
@@ -74,9 +75,6 @@ def run_probing_experiment(storage):
             }
 
     return pd.DataFrame(results_list), trained_models
-
-
-from sklearn.metrics.pairwise import cosine_similarity
 
 
 def analyze_probe_axes_orthogonality(trained_models, output_dir):
@@ -90,12 +88,12 @@ def analyze_probe_axes_orthogonality(trained_models, output_dir):
         w_detect = trained_models["Detection (Cert vs Uncert)_Null Space"]["model"].coef_
         w_type = trained_models["Type (Epi vs Alea)_Null Space"]["model"].coef_
 
-        similarity = cosine_similarity(w_detect, w_type)[0][0]
+        similarity = round(cosine_similarity(w_detect, w_type)[0][0], 2)
 
         report_path = os.path.join(output_dir, "orthogonality_report.txt")
         with open(report_path, "w") as f:
             f.write(f"--- Subspace Orthogonality Report ---\n")
-            f.write(f"Cosine Similarity (Detection vs Type) in Null Space: {similarity:.4f}\n")
+            f.write(f"Cosine Similarity (Detection vs Type) in Null Space: {similarity:.2f}\n")
 
             if abs(similarity) < 0.2:
                 f.write(
@@ -103,7 +101,7 @@ def analyze_probe_axes_orthogonality(trained_models, output_dir):
             else:
                 f.write(f"Conclusion: Linear overlap detected (Similarity: {similarity:.4f}).\n")
 
-        print(f"✅ Orthogonality: {similarity:.4f}")
+        print(f"✅ Orthogonality: {similarity:.2f}")
         print(f"📄 Report saved to: {report_path}")
 
     except KeyError as e:
