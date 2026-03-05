@@ -61,13 +61,15 @@ class DynamicUnembeddingAnalyzer:
 
         return P_perp, k_opt, S
 
-    def visualize_spectrum(self, S: torch.Tensor, k: int, tail_size: int = 100):
+    def visualize_spectrum(self, S: torch.Tensor, k: int, tail_size: int = 150):
         """
         Generates a log-scale plot of the singular value spectrum tail to verify the null space.
+        Saves the output as a PDF named after the model.
         """
         plt.figure(figsize=(10, 6))
 
         # Focus on the smallest singular values (the tail)
+        # S is sorted from largest to smallest by torch.linalg.svd
         indices = range(self.d_model - tail_size, self.d_model)
         values = S.cpu().detach().numpy()[-tail_size:]
 
@@ -82,9 +84,13 @@ class DynamicUnembeddingAnalyzer:
         plt.grid(True, which="both", ls="-", alpha=0.5)
         plt.tight_layout()
 
-        # Save or display result
-        plt.savefig(f"spectrum_{self.model.cfg.model_name.replace('/', '_')}.png")
-        print(f"Spectrum plot saved as spectrum_{self.model.cfg.model_name.replace('/', '_')}.png")
+        # Sanitize model name for filename (remove slashes for HF models)
+        safe_model_name = self.model.cfg.model_name.replace('/', '_').replace('.', '_')
+        filename = f"plots/spectrum_{safe_model_name}.pdf"
+
+        # Save as high-quality PDF
+        plt.savefig(filename, format='pdf', bbox_inches='tight')
+        print(f"✅ Spectrum plot saved as: {filename}")
         plt.show()
 
 
@@ -107,6 +113,6 @@ if __name__ == "__main__":
     analyzer.visualize_spectrum(singular_values, k=k_found, tail_size=150)
 
     # Save the resulting projection matrix for downstream uncertainty analysis
-    output_path = f"P_perp_{MODEL_ID.split('/')[-1]}.pt"
+    output_path = f"plots/P_perp_{MODEL_ID.split('/')[-1]}.pt"
     torch.save(P_perp, output_path)
     print(f"Projection matrix saved to: {output_path}")

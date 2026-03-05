@@ -12,13 +12,21 @@ from plot import plot_layer_wise_emergence
 
 def main():
     # --- PATH SETUP ---
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(current_dir))
-    data_path = os.path.join(project_root, "src", "data", MODEL_NAME, "uncertainty_study_dataset.jsonl")
-    baseline_path = os.path.join(project_root, "src", "data", MODEL_NAME, "baseline_dataset.jsonl")
+    # absolute path to main.py
+    current_file_path = os.path.abspath(__file__)
+    # current_file_path is .../src/subspaces_analysis/main.py
+
+    # move up two levels to get to the project root
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file_path)))
+
+    # Now build the path to data correctly
+    data_path = os.path.join(project_root, "src", "data", "data.jsonl")
+
+    print(f"📂 Project Root: {project_root}")
+    print(f"📄 Looking for data at: {data_path}")
 
     if not os.path.exists(data_path):
-        print(f"❌ ERROR: Dataset not found at {data_path}")
+        print(f"❌ ERROR: Unified triplet dataset not found at {data_path}")
         return
 
     # --- INITIALIZATION ---
@@ -49,25 +57,26 @@ def main():
     print(f"🔍 Analyzing layers: {layers_to_check}")
 
     # --- STEP 1: GEOMETRIC ANALYSIS ---
-    # summary_df contains metrics across all layers
-    # all_layer_storage is a dict mapping layer_idx to its activation storage
+    # Note: run_triple_experiment now only needs one data_path
+    # as the baseline is a column/key within the same JSONL.
     csv_metrics_path = os.path.join(output_dir, "multi_layer_metrics.csv")
+
+    # We pass data_path twice or modify the function signature to accept a unified file
     summary_df, all_layer_storage = run_triple_experiment(
-        analyzer, data_path, baseline_path, output_dir, layers_to_test=layers_to_check
+        analyzer, data_path, output_dir, layers_to_test=layers_to_check
     )
+
     summary_df.to_csv(csv_metrics_path, index=False)
     plot_layer_wise_emergence(csv_metrics_path, output_dir)
 
-    # Collector for probing results across all layers
     all_probing_results = []
 
-    # --- NEW: PER-LAYER FUNCTIONAL ANALYSIS LOOP ---
+    # --- PER-LAYER FUNCTIONAL ANALYSIS LOOP ---
     for layer_idx in layers_to_check:
         print(f"\n" + "=" * 50)
         print(f"🏗️  PROCESSING LAYER {layer_idx}")
         print("=" * 50)
 
-        # Create layer-specific subdirectories to avoid overwriting reports
         layer_output_dir = os.path.join(output_dir, f"layer_{layer_idx}")
         os.makedirs(layer_output_dir, exist_ok=True)
 
@@ -75,31 +84,26 @@ def main():
 
         # --- STEP 2: PROBING ---
         print(f"🧠 Probing layer {layer_idx} for linear disentanglement...")
-        # run_probing_experiment handles CV and fits models for the specific layer
         probing_results_df, probing_models_dict = run_probing_experiment(storage_current_layer)
 
-        # Metadata tagging for final aggregation
         probing_results_df['Layer'] = layer_idx
         all_probing_results.append(probing_results_df)
 
-        # Calculate geometric orthogonality for this specific layer
         analyze_probe_axes_orthogonality(probing_models_dict, layer_output_dir)
 
         # --- STEP 3: NEURON ATTRIBUTION ---
-        # Map probe weights back to specific neurons for this layer
         print(f"🔍 Attributing uncertainty signals to neurons in layer {layer_idx}...")
         get_top_uncertainty_neurons(probing_models_dict, "Detection (Cert vs Uncert)", "Null Space", layer_output_dir)
         get_top_uncertainty_neurons(probing_models_dict, "Type (Epi vs Alea)", "Null Space", layer_output_dir)
 
-    # Save aggregated probing results for all checked layers
     final_probing_df = pd.concat(all_probing_results, ignore_index=True)
     final_probing_df.to_csv(os.path.join(output_dir, "all_layers_probing_results.csv"), index=False)
 
     # --- STEP 4: CAUSAL INTERVENTION (Steering) ---
-    # Typically performed using the final layer's regulatory vectors
     final_layer_idx = layers_to_check[-1]
     print(f"\n🧪 Running Causal Steering Intervention (Layer {final_layer_idx})...")
 
+    # Dynamic test prompts for steering
     test_data = [
         {"prompt": "The capital of France is", "logic": "Paris"},
         {"prompt": "Two plus two equals", "logic": "four"}
