@@ -1,4 +1,4 @@
-from data_generation import UncertaintyStudyManager
+from uncertainty_study_manager import UncertaintyStudyManager
 from config import MODEL_ID
 
 DATASET_TARGET_SIZE = 200  # Desired number of samples per class for the final dataset
