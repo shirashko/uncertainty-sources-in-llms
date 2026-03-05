@@ -7,11 +7,12 @@ from typing import List, Dict, Any, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
 from config import HF_TOKEN
+from tqdm import tqdm
 
 
 class UncertaintyStudyManager:
     def __init__(self, model_name: str, device: Optional[str] = None):
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device or ("mps" if torch.backends.mps.is_available() else "cpu")
         print(f"Initializing engine: {model_name} on {self.device}")
 
         self.model_tag = model_name.split("/")[-1]
@@ -60,7 +61,7 @@ class UncertaintyStudyManager:
             probs = torch.softmax(outputs.logits[0, -1, :], dim=-1)
             conf, token_id = torch.max(probs, dim=-1)
             result = {
-                "confidence": conf.item(),
+                "confidence": round(conf.item(), 2),
                 "token_id": token_id.item(),
                 "prediction": self.tokenizer.decode(token_id),
             }
@@ -70,28 +71,30 @@ class UncertaintyStudyManager:
 
     def generate_baseline_c4(self, n_samples: int) -> List[Dict]:
         """Generates high-confidence baseline samples from C4, capped at 20 words."""
-        print(f"--- Phase 1: Generating C4 Baseline (Target: {n_samples}) ---")
+        print(f"\n--- Phase 1: Generating C4 Baseline (Target: {n_samples}) ---")
         ds = load_dataset("allenai/c4", "en", split="train", streaming=True)
         data = []
+
+        # Using tqdm with manually updated counter because we are filtering a stream
+        pbar = tqdm(total=n_samples, desc="Searching for high-confidence samples")
         for item in ds:
             words = item['text'].split()
-            if not words: continue
+            if len(words) < 10 or not words: continue
 
-            # Take up to 20 words for the prompt
-            prompt = " ".join(words[:20])
-
+            prompt = " ".join(words[:10])
             res = self.get_inference_data(prompt, return_activation=True)
 
-            # Filter for high-certainty "Common Knowledge" baseline
             if res["confidence"] > 0.80:
                 data.append({**res, "prompt": prompt, "type": "baseline", "source": "c4"})
+                pbar.update(1)
 
             if len(data) >= n_samples: break
+        pbar.close()
         return data
 
     def generate_epistemic_popqa(self, n_samples: int) -> List[Dict]:
         """Generates low-popularity epistemic samples from PopQA."""
-        print(f"--- Phase 2: Generating Epistemic PopQA (Target: {n_samples}) ---")
+        print(f"\n--- Phase 2: Generating Epistemic PopQA (Target: {n_samples}) ---")
         popqa = load_dataset("akariasai/PopQA", split="test")
         filtered_popqa = popqa.filter(lambda x: x['s_pop'] < 100)
 
@@ -100,7 +103,7 @@ class UncertaintyStudyManager:
         random.shuffle(indices)
 
         limit = min(len(indices), n_samples)
-        for i in indices[:limit]:
+        for i in tqdm(indices[:limit], desc="Processing PopQA"):
             item = filtered_popqa[i]
             prompt = self.clean_to_declarative(item['question'])
             res = self.get_inference_data(prompt, return_activation=True)
@@ -109,13 +112,13 @@ class UncertaintyStudyManager:
 
     def generate_aleatoric_ambig(self, n_samples: int) -> List[Dict]:
         """Generates aleatoric samples from AmbigQA."""
-        print(f"--- Phase 3: Generating Aleatoric AmbigQA (Target: {n_samples}) ---")
+        print(f"\n--- Phase 3: Generating Aleatoric AmbigQA (Target: {n_samples}) ---")
         ambig = load_dataset("sewon/ambig_qa", "light", split="train")
         raw = ambig.filter(lambda x: 'multipleQAs' in x['annotations']['type'])
 
         data = []
         limit = min(len(raw), n_samples)
-        for i in range(limit):
+        for i in tqdm(range(limit), desc="Processing AmbigQA"):
             item = raw[i]
             prompt = self.clean_to_declarative(item['question'])
             res = self.get_inference_data(prompt, return_activation=True)
@@ -123,42 +126,33 @@ class UncertaintyStudyManager:
         return data
 
     def run_study_generation(self, target_n: int):
-        """
-        Orchestrates generation, balances sizes to the minimum N found,
-        and performs a single coordinated save.
-        """
-        # 1. Collect all raw data
+        """Orchestrates generation, balancing, and coordinated saving."""
         raw_results = {
             "baseline": self.generate_baseline_c4(target_n),
             "epistemic": self.generate_epistemic_popqa(target_n),
             "aleatoric": self.generate_aleatoric_ambig(target_n)
         }
 
-        # 2. Determine the balancing factor (N_min)
         min_len = min(len(d) for d in raw_results.values())
         print(f"\n--- Balancing: Truncating all datasets to N={min_len} ---")
 
-        # 3. Clear existing master file
         master_path = os.path.join(self.data_dir, "uncertainty_study_dataset.jsonl")
         if os.path.exists(master_path):
             os.remove(master_path)
 
-        # 4. Save individual files and the master study file
-        for dtype, items in raw_results.items():
+        # Iterate over types with a small progress bar for the final save phase
+        for dtype, items in tqdm(raw_results.items(), desc="Saving balanced datasets"):
             balanced_subset = items[:min_len]
 
-            # Extract and save the latent anchor (mean activation)
             activations = [it["activation"] for it in balanced_subset]
             x_mean = torch.stack(activations).mean(dim=0)
             torch.save(x_mean, os.path.join(self.data_dir, f"{dtype}_certainty_baseline.pt"))
 
-            # Save JSONL (Master and Subset)
             self.export_jsonl(balanced_subset, f"{dtype}_dataset.jsonl", mode='a')
 
         print(f"Successfully generated balanced study with {min_len * 3} total samples.")
 
     def export_jsonl(self, data: List[Dict], filename: str, mode: str = 'w'):
-        """Standardized export. Converts tensors to lists for JSON compatibility."""
         specific_path = os.path.join(self.data_dir, filename)
         master_path = os.path.join(self.data_dir, "uncertainty_study_dataset.jsonl")
 
