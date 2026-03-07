@@ -89,7 +89,7 @@ def run_triple_experiment(analyzer, data_path, output_dir, layers_to_test=None):
         os.makedirs(layer_dir, exist_ok=True)
 
         # Initialize storage
-        storage = {cat: {"orig": [], "null": [], "logits": []} for cat in categories}
+        storage = {cat: {"orig": [], "null": [], "logits": [], "random": []} for cat in categories}
         metadata_by_cat = {cat: [] for cat in categories}
 
         for triplet in tqdm(raw_triplets, desc=f"Extracting L{layer_idx}"):
@@ -103,10 +103,12 @@ def run_triple_experiment(analyzer, data_path, output_dir, layers_to_test=None):
                 x = analyzer.get_activation(prompt, layer_idx=layer_idx)
                 x_null = analyzer.project_null(x)
                 x_logits = analyzer.project_logits(x)
+                x_random = analyzer.project_random(x)
 
                 storage[cat]["orig"].append(x.detach().cpu().numpy())
                 storage[cat]["null"].append(x_null.detach().cpu().numpy())
                 storage[cat]["logits"].append(x_logits.detach().cpu().numpy())
+                storage[cat]["random"].append(x_random.detach().cpu().numpy())
 
                 # 2. Enrich Metadata with Behavioral Results from Cache
                 behav = behavioral_cache[t_id][cat]
@@ -121,7 +123,7 @@ def run_triple_experiment(analyzer, data_path, output_dir, layers_to_test=None):
                 metadata_by_cat[cat].append(meta_item)
 
         all_layer_storage[layer_idx] = storage
-        spaces = [("orig", "Original"), ("null", "Null"), ("logits", "Logits")]
+        spaces = [("orig", "Original"), ("null", "Null"), ("logits", "Logits"), ("random", "Random Control")]
 
         # Step 2: Layer Analysis (PCA & Metrics)
         for key, name in spaces:

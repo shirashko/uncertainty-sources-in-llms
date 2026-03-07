@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_validate, StratifiedKFold
-import os
 from sklearn.metrics.pairwise import cosine_similarity
 
 
@@ -24,7 +23,7 @@ def run_probing_experiment(storage):
     # We use the mean of the 'baseline' category for each geometric subspace
     baseline_means = {
         space: np.mean(storage['baseline'][space], axis=0)
-        for space in ["orig", "null", "logits"]
+        for space in ["orig", "null", "logits", "random"]
     }
 
     cv_strategy = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
@@ -47,7 +46,7 @@ def run_probing_experiment(storage):
                              [1] * len(storage['aleatoric']['orig']))
 
             # 2. Run for each geometric space
-            for key_space, space_label in [("orig", "Original"), ("null", "Null Space"), ("logits", "Logit Space")]:
+            for key_space, space_label in [("orig", "Original"), ("null", "Null Space"), ("logits", "Logit Space"), ("random", "Random Control")]:
                 # Stack the raw activations
                 X = np.vstack([np.stack(storage[k][key_space]) for k in storage_keys])
 
@@ -93,42 +92,39 @@ def run_probing_experiment(storage):
     return pd.DataFrame(results_list), trained_models
 
 
-def analyze_probe_axes_orthogonality(trained_models, output_dir):
+def analyze_probe_axes_orthogonality(trained_models, layer_idx):
     """
-    Measures the cosine similarity between the decision boundaries of the
-    'Detection' probe and the 'Type' probe specifically in the Null Space.
-    Checks both Absolute and Residual versions.
+    Measures the cosine similarity between the decision boundaries of probes.
+    Returns a list of results for the specific layer.
     """
-    print("\n📐 Analyzing Geometric Orthogonality of Probe Axes...")
+    layer_ortho_results = []
 
-    report_path = os.path.join(output_dir, "orthogonality_report.txt")
+    for mode in ["Absolute", "Residual"]:
+        try:
+            key_detect = f"Detection (Cert vs Uncert)_Null Space_{mode}"
+            key_type = f"Type (Epi vs Alea)_Null Space_{mode}"
 
-    with open(report_path, "w") as f:
-        f.write(f"--- Subspace Orthogonality Report ---\n\n")
+            w_detect = trained_models[key_detect]["model"].coef_
+            w_type = trained_models[key_type]["model"].coef_
 
-        for mode in ["Absolute", "Residual"]:
-            try:
-                # Keys updated to match the new 'mode' suffix in run_probing_experiment
-                key_detect = f"Detection (Cert vs Uncert)_Null Space_{mode}"
-                key_type = f"Type (Epi vs Alea)_Null Space_{mode}"
+            similarity = round(cosine_similarity(w_detect, w_type)[0][0], 4)
 
-                w_detect = trained_models[key_detect]["model"].coef_
-                w_type = trained_models[key_type]["model"].coef_
+            # קביעת הסטטוס הגיאומטרי
+            if abs(similarity) < 0.2:
+                geometry = "Orthogonal"
+            elif abs(similarity) > 0.7:
+                geometry = "Linear Overlap"
+            else:
+                geometry = "Partial Overlap"
 
-                similarity = round(cosine_similarity(w_detect, w_type)[0][0], 4)
+            layer_ortho_results.append({
+                "Layer": layer_idx,
+                "Mode": mode,
+                "Cosine_Sim": similarity,
+                "Geometry": geometry
+            })
 
-                f.write(f"Mode: {mode}\n")
-                f.write(f"Cosine Similarity (Detection vs Type) in Null Space: {similarity:.4f}\n")
+        except KeyError as e:
+            print(f"⚠️ Missing model for L{layer_idx} {mode} orthogonality: {e}")
 
-                if abs(similarity) < 0.2:
-                    f.write("Conclusion: High Orthogonality. The axes are independent.\n")
-                else:
-                    f.write(f"Conclusion: Linear overlap detected.\n")
-                f.write("-" * 30 + "\n")
-
-                print(f"✅ {mode} Orthogonality (Sim): {similarity:.4f}")
-
-            except KeyError as e:
-                print(f"⚠️ Missing model for {mode} orthogonality check: {e}")
-
-    print(f"📄 Report saved to: {report_path}")
+    return layer_ortho_results

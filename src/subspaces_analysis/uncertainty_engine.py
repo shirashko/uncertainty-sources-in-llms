@@ -56,3 +56,21 @@ class UncertaintyAnalyzer:
     def project_logits(self, vector):
         """Projects vector into the Logits Space (I - P_perp)."""
         return vector.to(self.device) @ self.P_parallel
+
+    def project_random(self, vector):
+        """
+        Projects vector into a random subspace of the same dimension as the Null Space.
+        Calculates the basis on CPU to avoid MPS NotImplementedError.
+        """
+        if not hasattr(self, 'P_random'):
+            # 1. Generate random matrix on CPU
+            random_matrix = torch.randn(self.model.cfg.d_model, self.k, device="cpu")
+
+            # 2. Perform QR decomposition on CPU
+            Q, _ = torch.linalg.qr(random_matrix)  # Orthonormalization
+
+            # 3. Move back to the model's device (MPS) and compute projection matrix
+            Q = Q.to(self.device)
+            self.P_random = Q @ Q.t()
+
+        return vector.to(self.device) @ self.P_random

@@ -70,6 +70,7 @@ def main():
     plot_layer_wise_emergence(csv_metrics_path, output_dir)
 
     all_probing_results = []
+    all_ortho_results = []
 
     # --- PER-LAYER FUNCTIONAL ANALYSIS LOOP ---
     for layer_idx in layers_to_check:
@@ -89,15 +90,20 @@ def main():
         probing_results_df['Layer'] = layer_idx
         all_probing_results.append(probing_results_df)
 
-        analyze_probe_axes_orthogonality(probing_models_dict, layer_output_dir)
+        layer_ortho = analyze_probe_axes_orthogonality(probing_models_dict, layer_idx)
+        all_ortho_results.extend(layer_ortho)
 
         # --- STEP 3: NEURON ATTRIBUTION ---
         print(f"🔍 Attributing uncertainty signals to neurons in layer {layer_idx}...")
-        get_top_uncertainty_neurons(probing_models_dict, "Detection (Cert vs Uncert)", "Null Space", layer_output_dir)
-        get_top_uncertainty_neurons(probing_models_dict, "Type (Epi vs Alea)", "Null Space", layer_output_dir)
+        get_top_uncertainty_neurons(probing_models_dict, "Detection (Cert vs Uncert)", "Null Space_Residual",
+                                    layer_output_dir)
+        get_top_uncertainty_neurons(probing_models_dict, "Type (Epi vs Alea)", "Null Space_Residual", layer_output_dir)
 
     final_probing_df = pd.concat(all_probing_results, ignore_index=True)
     final_probing_df.to_csv(os.path.join(output_dir, "all_layers_probing_results.csv"), index=False)
+
+    final_ortho_df = pd.DataFrame(all_ortho_results)
+    final_ortho_df.to_csv(os.path.join(output_dir, "all_layers_orthogonality.csv"), index=False)
 
     # --- STEP 4: CAUSAL INTERVENTION (Steering) ---
     final_layer_idx = layers_to_check[-1]
