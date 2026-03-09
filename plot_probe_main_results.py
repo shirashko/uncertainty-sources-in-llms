@@ -9,6 +9,7 @@ def plot_vertical_model_dashboard_dual_peaks(model_configs, geometry_data,
     """
     Creates a 2-row x 3-column matrix.
     Includes separate vertical peak indicators for Detection and Type tasks.
+    Llama geometry color changed to Purple to avoid confusion with Red Task lines.
     """
     sns.set_style("whitegrid", {'axes.grid': True, 'grid.linestyle': '--', 'grid.alpha': 0.6})
 
@@ -17,7 +18,13 @@ def plot_vertical_model_dashboard_dual_peaks(model_configs, geometry_data,
 
     # Consistent Task styling
     task_colors = {'Detection (Cert vs Uncert)': '#2C3E50', 'Type (Epi vs Alea)': '#E74C3C'}
-    model_colors = {'GPT-2 Small': '#4C72B0', 'Gemma-2-2B': '#55A868', 'Llama-3.2-1B': '#8E44AD'}
+
+    # Updated Llama color to Purple (#8E44AD) to distinguish from Red Task line
+    model_colors = {
+        'GPT-2 Small': '#4C72B0',
+        'Gemma-2-2B': '#55A868',
+        'Llama-3.2-1B': '#8E44AD'
+    }
 
     for i, (file_path, model_name) in enumerate(model_configs):
         ax_prob = axes[0, i]
@@ -34,23 +41,18 @@ def plot_vertical_model_dashboard_dual_peaks(model_configs, geometry_data,
             for task, color in task_colors.items():
                 subset = df_prob[df_prob['Task'] == task]
                 if not subset.empty:
-                    # Plot accuracy
                     ax_prob.plot(subset['Layer'], subset['Accuracy'],
                                  label=task, color=color, marker='o', linewidth=2.5, markersize=6)
 
-                    # Identify peak layer for this specific task
                     p_idx = subset['Accuracy'].idxmax()
                     peaks[task] = subset.loc[p_idx, 'Layer']
 
-            # Draw Task-Specific Peak Indicators across both rows
+            # Task-Specific Peak Indicators
             for task, p_layer in peaks.items():
                 col = task_colors[task]
-                # Draw on Probing ax
                 ax_prob.axvline(p_layer, color=col, linestyle=':', alpha=0.6, linewidth=2)
-                # Draw on Geometry ax
                 ax_geom.axvline(p_layer, color=col, linestyle=':', alpha=0.6, linewidth=2)
 
-                # Label the Type Peak specifically as requested
                 if 'Type' in task:
                     ax_prob.text(p_layer, 0.96, f'Type Peak: L{int(p_layer)}',
                                  color=col, fontweight='bold', fontsize=9, ha='center')
@@ -74,7 +76,9 @@ def plot_vertical_model_dashboard_dual_peaks(model_configs, geometry_data,
         ax_geom.set_xlabel("Transformer Layer", fontsize=12)
         if i == 0:
             ax_geom.set_ylabel("Cosine Similarity ($W_{det}, W_{source}$)", fontsize=11)
-            ax_geom.set_title("Subspace Geometry", fontsize=13, fontweight='bold')
+            ax_geom.set_title("Null Space Geometry", fontsize=13, fontweight='bold')
+        else:
+            ax_geom.set_title("Null Space Geometry", fontsize=13, fontweight='bold')
 
     prob_handles, prob_labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(prob_handles, prob_labels, loc='lower center', ncol=2,
@@ -84,7 +88,6 @@ def plot_vertical_model_dashboard_dual_peaks(model_configs, geometry_data,
     plt.tight_layout(rect=[0, 0.07, 1, 0.95])
 
     plt.savefig(output_filename, format='pdf', bbox_inches='tight')
-    print(f"✅ Success: Dual-peak dashboard saved as {output_filename}")
     plt.show()
 
 
