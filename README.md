@@ -2,13 +2,13 @@
 
 This repository contains the official codebase for the paper "Beyond Entropy Sinks: Structured and Disentangled Uncertainty Representations in the Unembedding Null Space", developed as part of the Deep Learning course under Prof. Lior Wolf at Tel Aviv University.
 
-![Mechanistic Disentanglement Pipeline](assets/pipeline.jpg)
-
 ## Abstract
 
 Recent mechanistic interpretability reveals that Large Language Models (LLMs) encode internal truthfulness signals independently of their logit outputs. Prior research has identified "entropy neurons" that utilize the unembedding null space to modulate confidence via LayerNorm scaling. We investigate whether this subspace functions merely as a passive "entropy sink" or whether it encodes a richer, multidimensional uncertainty structure capable of disentangling aleatoric (data ambiguity) from epistemic (model ignorance) sources.
 
 By analyzing GPT-2 Small, Gemma-2-2B, and Llama-3.2-1B, we demonstrate that uncertainty detection and source dissociation are robustly encoded within the unembedding effective null space (ENS), maintaining functional decoupling from final logit predictions. Layer-wise geometric analysis reveals that uncertainty detection and source identification often occupy near-orthogonal axes, while specific uncertainty etiologies manifest as cohesive, task-specific directions. These findings establish the ENS as a structured, self-regulatory hub rather than a passive reservoir for residual noise. Our study identifies a mechanism for internal uncertainty monitoring, offering a potential path for future strategies to mitigate hallucinations and enhance AI safety in high-stakes deployments.
+
+![Mechanistic Disentanglement Pipeline](assets/pipeline.jpg)
 
 ---
 
