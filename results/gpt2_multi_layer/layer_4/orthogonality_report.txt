@@ -1,0 +1,10 @@
+--- Subspace Orthogonality Report ---
+
+Mode: Absolute
+Cosine Similarity (Detection vs Type) in Null Space: 0.5388
+Conclusion: Linear overlap detected.
+------------------------------
+Mode: Residual
+Cosine Similarity (Detection vs Type) in Null Space: 0.5392
+Conclusion: Linear overlap detected.
+------------------------------

@@ -1,0 +1,9 @@
+Prompt,Alpha,Entropy,Top_Token,Confidence,Top_K_Rank
+prompt,0,3.3024,=,0.5719,"['=', '--', '<<', '', '>>']"
+prompt,5,7.3639,=,0.1866,"['=', '--', 'ed', '<<', '>>']"
+prompt,10,9.8194,=,0.0383,"['=', '--', 'ed', '—', '<<']"
+prompt,20,11.0837,--,0.0056,"['--', '=', '—', 'ed', 'with']"
+logic,0,7.0502,of,0.0501,"['of', 'and', ',', ':', 'is']"
+logic,5,9.1365,and,0.0239,"['and', 'of', 'is', 'in', 'for']"
+logic,10,10.2591,and,0.0104,"['and', 'of', 'is', 'for', 'in']"
+logic,20,11.1056,and,0.0028,"['and', 'is', 'with', 'for', 'that']"

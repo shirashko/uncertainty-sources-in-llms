@@ -1,0 +1,97 @@
+Task,Mode,Space,Accuracy,ROC-AUC,AUC Std Dev,Layer
+Type (Epi vs Alea),Absolute,Original,0.98,0.998,0.003,0
+Type (Epi vs Alea),Absolute,Null Space,0.725,0.786,0.028,0
+Type (Epi vs Alea),Absolute,Logit Space,0.985,0.998,0.003,0
+Detection (Cert vs Uncert),Absolute,Original,0.87,0.928,0.048,0
+Detection (Cert vs Uncert),Absolute,Null Space,0.533,0.556,0.067,0
+Detection (Cert vs Uncert),Absolute,Logit Space,0.867,0.928,0.048,0
+Type (Epi vs Alea),Residual,Original,0.98,0.997,0.004,0
+Type (Epi vs Alea),Residual,Null Space,0.725,0.786,0.028,0
+Type (Epi vs Alea),Residual,Logit Space,0.98,0.997,0.004,0
+Detection (Cert vs Uncert),Residual,Original,0.863,0.927,0.047,0
+Detection (Cert vs Uncert),Residual,Null Space,0.533,0.556,0.067,0
+Detection (Cert vs Uncert),Residual,Logit Space,0.867,0.928,0.05,0
+Type (Epi vs Alea),Absolute,Original,0.99,0.996,0.007,4
+Type (Epi vs Alea),Absolute,Null Space,0.79,0.859,0.08,4
+Type (Epi vs Alea),Absolute,Logit Space,0.99,0.997,0.006,4
+Detection (Cert vs Uncert),Absolute,Original,0.957,0.98,0.022,4
+Detection (Cert vs Uncert),Absolute,Null Space,0.613,0.656,0.086,4
+Detection (Cert vs Uncert),Absolute,Logit Space,0.957,0.98,0.023,4
+Type (Epi vs Alea),Residual,Original,0.99,0.997,0.006,4
+Type (Epi vs Alea),Residual,Null Space,0.79,0.859,0.08,4
+Type (Epi vs Alea),Residual,Logit Space,0.99,0.997,0.005,4
+Detection (Cert vs Uncert),Residual,Original,0.953,0.981,0.022,4
+Detection (Cert vs Uncert),Residual,Null Space,0.613,0.656,0.086,4
+Detection (Cert vs Uncert),Residual,Logit Space,0.953,0.98,0.023,4
+Type (Epi vs Alea),Absolute,Original,0.99,1.0,0.0,8
+Type (Epi vs Alea),Absolute,Null Space,0.475,0.458,0.094,8
+Type (Epi vs Alea),Absolute,Logit Space,0.99,1.0,0.0,8
+Detection (Cert vs Uncert),Absolute,Original,0.977,0.993,0.011,8
+Detection (Cert vs Uncert),Absolute,Null Space,0.59,0.648,0.057,8
+Detection (Cert vs Uncert),Absolute,Logit Space,0.977,0.993,0.011,8
+Type (Epi vs Alea),Residual,Original,0.99,1.0,0.001,8
+Type (Epi vs Alea),Residual,Null Space,0.475,0.458,0.094,8
+Type (Epi vs Alea),Residual,Logit Space,0.99,1.0,0.001,8
+Detection (Cert vs Uncert),Residual,Original,0.98,0.993,0.011,8
+Detection (Cert vs Uncert),Residual,Null Space,0.59,0.648,0.057,8
+Detection (Cert vs Uncert),Residual,Logit Space,0.98,0.992,0.014,8
+Type (Epi vs Alea),Absolute,Original,0.995,1.0,0.0,12
+Type (Epi vs Alea),Absolute,Null Space,0.58,0.636,0.049,12
+Type (Epi vs Alea),Absolute,Logit Space,0.99,1.0,0.0,12
+Detection (Cert vs Uncert),Absolute,Original,0.98,0.989,0.016,12
+Detection (Cert vs Uncert),Absolute,Null Space,0.563,0.602,0.029,12
+Detection (Cert vs Uncert),Absolute,Logit Space,0.98,0.989,0.015,12
+Type (Epi vs Alea),Residual,Original,0.98,1.0,0.0,12
+Type (Epi vs Alea),Residual,Null Space,0.58,0.636,0.049,12
+Type (Epi vs Alea),Residual,Logit Space,0.98,1.0,0.0,12
+Detection (Cert vs Uncert),Residual,Original,0.977,0.986,0.021,12
+Detection (Cert vs Uncert),Residual,Null Space,0.563,0.602,0.029,12
+Detection (Cert vs Uncert),Residual,Logit Space,0.98,0.991,0.01,12
+Type (Epi vs Alea),Absolute,Original,0.995,1.0,0.0,16
+Type (Epi vs Alea),Absolute,Null Space,0.83,0.902,0.035,16
+Type (Epi vs Alea),Absolute,Logit Space,0.995,1.0,0.0,16
+Detection (Cert vs Uncert),Absolute,Original,0.97,0.992,0.01,16
+Detection (Cert vs Uncert),Absolute,Null Space,0.69,0.737,0.076,16
+Detection (Cert vs Uncert),Absolute,Logit Space,0.967,0.993,0.009,16
+Type (Epi vs Alea),Residual,Original,0.995,1.0,0.0,16
+Type (Epi vs Alea),Residual,Null Space,0.83,0.902,0.035,16
+Type (Epi vs Alea),Residual,Logit Space,0.995,1.0,0.0,16
+Detection (Cert vs Uncert),Residual,Original,0.96,0.991,0.011,16
+Detection (Cert vs Uncert),Residual,Null Space,0.69,0.737,0.076,16
+Detection (Cert vs Uncert),Residual,Logit Space,0.963,0.991,0.009,16
+Type (Epi vs Alea),Absolute,Original,0.99,1.0,0.0,20
+Type (Epi vs Alea),Absolute,Null Space,0.69,0.777,0.058,20
+Type (Epi vs Alea),Absolute,Logit Space,0.99,1.0,0.0,20
+Detection (Cert vs Uncert),Absolute,Original,0.96,0.986,0.014,20
+Detection (Cert vs Uncert),Absolute,Null Space,0.683,0.725,0.049,20
+Detection (Cert vs Uncert),Absolute,Logit Space,0.953,0.986,0.014,20
+Type (Epi vs Alea),Residual,Original,0.995,1.0,0.0,20
+Type (Epi vs Alea),Residual,Null Space,0.69,0.777,0.058,20
+Type (Epi vs Alea),Residual,Logit Space,0.995,1.0,0.0,20
+Detection (Cert vs Uncert),Residual,Original,0.957,0.984,0.019,20
+Detection (Cert vs Uncert),Residual,Null Space,0.683,0.725,0.049,20
+Detection (Cert vs Uncert),Residual,Logit Space,0.953,0.983,0.02,20
+Type (Epi vs Alea),Absolute,Original,0.985,1.0,0.0,24
+Type (Epi vs Alea),Absolute,Null Space,0.73,0.774,0.065,24
+Type (Epi vs Alea),Absolute,Logit Space,0.985,1.0,0.0,24
+Detection (Cert vs Uncert),Absolute,Original,0.957,0.98,0.018,24
+Detection (Cert vs Uncert),Absolute,Null Space,0.74,0.793,0.043,24
+Detection (Cert vs Uncert),Absolute,Logit Space,0.947,0.98,0.019,24
+Type (Epi vs Alea),Residual,Original,0.985,1.0,0.0,24
+Type (Epi vs Alea),Residual,Null Space,0.73,0.774,0.066,24
+Type (Epi vs Alea),Residual,Logit Space,0.985,1.0,0.0,24
+Detection (Cert vs Uncert),Residual,Original,0.917,0.973,0.021,24
+Detection (Cert vs Uncert),Residual,Null Space,0.74,0.793,0.043,24
+Detection (Cert vs Uncert),Residual,Logit Space,0.917,0.966,0.027,24
+Type (Epi vs Alea),Absolute,Original,0.985,1.0,0.0,25
+Type (Epi vs Alea),Absolute,Null Space,0.68,0.746,0.049,25
+Type (Epi vs Alea),Absolute,Logit Space,0.985,1.0,0.0,25
+Detection (Cert vs Uncert),Absolute,Original,0.93,0.972,0.021,25
+Detection (Cert vs Uncert),Absolute,Null Space,0.623,0.694,0.03,25
+Detection (Cert vs Uncert),Absolute,Logit Space,0.927,0.976,0.021,25
+Type (Epi vs Alea),Residual,Original,0.975,1.0,0.0,25
+Type (Epi vs Alea),Residual,Null Space,0.68,0.746,0.049,25
+Type (Epi vs Alea),Residual,Logit Space,0.98,1.0,0.0,25
+Detection (Cert vs Uncert),Residual,Original,0.91,0.937,0.04,25
+Detection (Cert vs Uncert),Residual,Null Space,0.623,0.694,0.03,25
+Detection (Cert vs Uncert),Residual,Logit Space,0.853,0.806,0.264,25

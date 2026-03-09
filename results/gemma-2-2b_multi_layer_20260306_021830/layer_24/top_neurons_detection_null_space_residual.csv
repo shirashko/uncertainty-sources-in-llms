@@ -1,0 +1,11 @@
+Rank,Neuron_Index,Weight,Direction,Task,Space
+1,334,0.030852292907379803,Uncertainty-leaning,Detection (Cert vs Uncert),Null Space_Residual
+2,1393,-0.015312789350593176,Certainty-leaning,Detection (Cert vs Uncert),Null Space_Residual
+3,976,-0.008610834488483274,Certainty-leaning,Detection (Cert vs Uncert),Null Space_Residual
+4,816,0.0074449198356692555,Uncertainty-leaning,Detection (Cert vs Uncert),Null Space_Residual
+5,833,0.004361181912990791,Uncertainty-leaning,Detection (Cert vs Uncert),Null Space_Residual
+6,778,-0.004157329373144995,Certainty-leaning,Detection (Cert vs Uncert),Null Space_Residual
+7,1514,0.004031141232734604,Uncertainty-leaning,Detection (Cert vs Uncert),Null Space_Residual
+8,1304,-0.00357395325710282,Certainty-leaning,Detection (Cert vs Uncert),Null Space_Residual
+9,1535,-0.00356083447870727,Certainty-leaning,Detection (Cert vs Uncert),Null Space_Residual
+10,1645,0.0034042281323808884,Uncertainty-leaning,Detection (Cert vs Uncert),Null Space_Residual

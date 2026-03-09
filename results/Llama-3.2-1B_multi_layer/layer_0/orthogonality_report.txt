@@ -1,0 +1,10 @@
+--- Subspace Orthogonality Report ---
+
+Mode: Absolute
+Cosine Similarity (Detection vs Type) in Null Space: 0.1839
+Conclusion: High Orthogonality. The axes are independent.
+------------------------------
+Mode: Residual
+Cosine Similarity (Detection vs Type) in Null Space: 0.1609
+Conclusion: High Orthogonality. The axes are independent.
+------------------------------

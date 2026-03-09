@@ -1,0 +1,17 @@
+Layer,Mode,Cosine_Sim,Geometry
+0,Absolute,0.7006,Linear Overlap
+0,Residual,0.6994,Partial Overlap
+4,Absolute,0.8428,Linear Overlap
+4,Residual,0.8427,Linear Overlap
+8,Absolute,0.5854,Partial Overlap
+8,Residual,0.5841,Partial Overlap
+12,Absolute,0.283,Partial Overlap
+12,Residual,0.2828,Partial Overlap
+16,Absolute,0.1701,Orthogonal
+16,Residual,0.1703,Orthogonal
+20,Absolute,-0.6695,Partial Overlap
+20,Residual,-0.6695,Partial Overlap
+24,Absolute,-0.3884,Partial Overlap
+24,Residual,-0.3885,Partial Overlap
+25,Absolute,-0.1773,Orthogonal
+25,Residual,-0.1773,Orthogonal

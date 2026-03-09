@@ -1,0 +1,11 @@
+Rank,Neuron_Index,Weight,Direction,Task,Space
+1,816,-0.35593058471598293,Epistemic-leaning,Type (Epi vs Alea),Null Space_Residual
+2,778,0.33389847831078123,Aleatoric-leaning,Type (Epi vs Alea),Null Space_Residual
+3,140,-0.17727119605428976,Epistemic-leaning,Type (Epi vs Alea),Null Space_Residual
+4,593,-0.16677740363740967,Epistemic-leaning,Type (Epi vs Alea),Null Space_Residual
+5,1488,0.11105066328926139,Aleatoric-leaning,Type (Epi vs Alea),Null Space_Residual
+6,689,0.10356081555747595,Aleatoric-leaning,Type (Epi vs Alea),Null Space_Residual
+7,53,0.09096991921082202,Aleatoric-leaning,Type (Epi vs Alea),Null Space_Residual
+8,1393,-0.08968250412529295,Epistemic-leaning,Type (Epi vs Alea),Null Space_Residual
+9,1068,0.07257441854803781,Aleatoric-leaning,Type (Epi vs Alea),Null Space_Residual
+10,1304,-0.06106039799934817,Epistemic-leaning,Type (Epi vs Alea),Null Space_Residual
